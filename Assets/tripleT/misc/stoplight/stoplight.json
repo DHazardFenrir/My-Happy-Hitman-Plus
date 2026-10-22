@@ -1,0 +1,33 @@
+{ "frames": {
+   "stoplight 0.ase": {
+    "frame": { "x": 0, "y": 0, "w": 480, "h": 43 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 480, "h": 43 },
+    "sourceSize": { "w": 480, "h": 43 },
+    "duration": 100
+   },
+   "stoplight 1.ase": {
+    "frame": { "x": 480, "y": 0, "w": 480, "h": 43 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 480, "h": 43 },
+    "sourceSize": { "w": 480, "h": 43 },
+    "duration": 100
+   }
+ },
+ "meta": {
+  "app": "https://github.com/LibreSprite/LibreSprite/",
+  "version": "1.1-dev",
+  "image": "C:\\Users\\Pucheros\\Desktop\\tripleT\\misc\\stoplight\\stoplight.png",
+  "format": "RGBA8888",
+  "size": { "w": 960, "h": 43 },
+  "scale": "1",
+  "frameTags": [
+  ],
+  "layers": [
+   { "name": "colors", "opacity": 255, "blendMode": "normal" },
+   { "name": "lines", "opacity": 255, "blendMode": "normal" }
+  ]
+ }
+}
