@@ -111,3 +111,6 @@ InitTestScene*.unity*
 # OS / editor
 .DS_Store
 .vscode/
+
+# Trailer videos (too big for git; kept locally)
+Docs/Trailer/**/*.mp4
