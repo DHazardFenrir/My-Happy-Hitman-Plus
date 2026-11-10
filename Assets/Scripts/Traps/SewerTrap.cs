@@ -6,11 +6,11 @@ public class SewerTrap : MonoBehaviour
     [SerializeField] private SpriteRenderer sewerWorker;
     [SerializeField] private Sprite workerSpriteChanged;
     [SerializeField] private Sprite openGrateSprite;
-    [Tooltip("Solo se usa si no hay sprite de la tapa asignado")]
+    [Tooltip("Only used if no grate sprite is assigned")]
     [SerializeField] private float catchRadius = 0.8f;
-    [Tooltip("Qué tan centrado debe estar el monito sobre la tapa (fracción del ancho de la tapa)")]
+    [Tooltip("How centered the monito must be over the grate (fraction of the grate width)")]
     [Range(0.1f, 1f)] [SerializeField] private float grateWidth = 0.8f;
-    [Tooltip("Margen vertical entre el cuerpo del monito y la tapa")]
+    [Tooltip("Vertical margin between the monito's body and the grate")]
     [SerializeField] private float verticalMargin = 0.5f;
     [SerializeField] GameObject particleGas;
 
@@ -21,8 +21,9 @@ public class SewerTrap : MonoBehaviour
         stageManager = manager;
         if (stageManager == null) return;
 
-        // Se mide antes de cambiar el sprite de la tapa
+        // Measured before the grate sprite changes
         NPCWalker caught = FindNPCOverGrate();
+        SoundFX.Play(Sfx.SewerOpen);
 
         if (grateSpriteRenderer != null && openGrateSprite != null)
         {
@@ -37,23 +38,26 @@ public class SewerTrap : MonoBehaviour
         if (caught != null)
         {
             if (particleGas != null) particleGas.SetActive(true);
+            SoundFX.Play(Sfx.SewerFall);
             stageManager.OnNPCFellInSewer(caught);
         }
         else
         {
-            // No había nadie encima: falla
+            // Nobody on top: fail
             stageManager.OnTrapMissed();
         }
     }
 
-    // Cae el monito cuyo centro está sobre la tapa (en horizontal, que es como caminan).
-    // La zona es el tamaño real del sprite de la tapa, no un círculo genérico.
+    // The monito whose center is over the grate falls (horizontally, since that's how they walk).
+    // The zone is the real size of the grate sprite, not a generic circle.
     private NPCWalker FindNPCOverGrate()
     {
         Bounds zone = GrateBounds();
         zone.Expand(new Vector3(0f, verticalMargin * 2f, 0f));
         return stageManager.FindVictim(zone, zone.extents.x * grateWidth);
     }
+
+    public Bounds Zone => GrateBounds();
 
     private Bounds GrateBounds()
     {

@@ -1,0 +1,24 @@
+=== Ko-fi > Edit page > About (paste below) ===
+
+Hi! We make Agent TR8N1, a one-button game about a city that trains its citizens to "remove threats"... with pianos, traffic lights, sewers, drones and a kennel full of guard dogs.
+
+Your coffee helps us:
+- make more training missions
+- pay for art, music and tools
+- keep the drones flying
+
+Play the demo free on itch.io: https://YOUR_NAME.itch.io/agent-tr8n1
+Watch the trailer: (YouTube link)
+
+Director & Programmer: Gold
+Artist: Luis Ortega
+
+Thank you for your service.
+
+
+=== Ko-fi > "Buy me a coffee" button text (optional) ===
+Fund the Agency
+
+
+=== Ko-fi > Thank-you message (optional) ===
+Payment received. Your loyalty has been noted. Thank you for your service, agent.

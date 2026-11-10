@@ -2,6 +2,22 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
+// How the player dies "in real life" after failing too many times
+public enum IrlDeathKind { HitByCar, CrushedFromAbove, Fall, ShotByDrone, MauledByDogs }
+
+// What the target card shows and what the stage receives. Most stages target a monito by its
+// clothes; others (the RC car) describe something else and use `code` for their own data.
+public struct StageTarget
+{
+    public NPCAppearance.ClothingPart clothing;
+    public int code;
+    public string header;    // e.g. "TARGET"
+    public string line1;     // e.g. "RED SHIRT"
+    public string connector; // e.g. "&" (empty to hide it)
+    public string line2;     // e.g. "BLACK PANTS"
+    public string hint;      // controls reminder at the bottom of the card
+}
+
 public abstract class WarioStage : MonoBehaviour
 {
     [Header("Base Config")]
@@ -9,16 +25,16 @@ public abstract class WarioStage : MonoBehaviour
     public Transform spawnPoint;
     public GameObject npcPrefab;
 
-    [Tooltip("Cuántos monitos distractores aparecen además del objetivo")]
+    [Tooltip("How many decoy monitos spawn besides the target")]
     public int extraNPCsCount = 3;
 
-    [Tooltip("Velocidad de los monitos en este minijuego (0 = la del prefab)")]
+    [Tooltip("Monito walking speed in this minigame (0 = the prefab value)")]
     public float npcMoveSpeed = 1.4f;
 
-    [Tooltip("Margen respecto al borde de la pantalla del celular donde aparecen/desaparecen los monitos")]
+    [Tooltip("Margin from the edge of the phone screen where monitos pop in/out")]
     public float screenMargin = 0.35f;
 
-    [Tooltip("Segundos que tiene la trampa para golpear a alguien después de activarse. Si no golpea a nadie, se falla.")]
+    [Tooltip("Seconds the trap has to hit someone after it is triggered. If it hits nobody, the minigame is failed.")]
     public float trapResolveTime = 2.5f;
 
     [Header("Camera Config")]
@@ -33,7 +49,11 @@ public abstract class WarioStage : MonoBehaviour
 
     protected readonly List<NPCWalker> spawnedNPCs = new List<NPCWalker>();
 
-    // Área del mundo que se ve en la pantalla del celular
+    // Autopilot: decided once per round (hit the target or press at the wrong time on purpose)
+    protected bool autopilotMisses { get; private set; }
+    protected float autopilotReactTime { get; private set; }
+
+    // World area visible on the phone screen
     protected Rect view;
 
     private static readonly NPCAppearance.ClothingPart[] availableCombinations =
@@ -50,11 +70,43 @@ public abstract class WarioStage : MonoBehaviour
         NPCAppearance.ClothingPart.BlueShirt  | NPCAppearance.ClothingPart.BluePants
     };
 
-    // Se elige el objetivo ANTES de instanciar el stage, para poder mostrar la card primero.
+    // The target is picked BEFORE the stage is instantiated, so the card can be shown first.
     public static NPCAppearance.ClothingPart PickRandomTarget()
     {
         return availableCombinations[Random.Range(0, availableCombinations.Length)];
     }
+
+    // ---- Target card ----
+
+    // Called on the PREFAB before it's instantiated (so it must not change anything): picks the target
+    // and says what the card shows. By default a random shirt + pants combination.
+    public virtual StageTarget PickTarget()
+    {
+        NPCAppearance.ClothingPart clothing = PickRandomTarget();
+        return new StageTarget
+        {
+            clothing = clothing,
+            header = "TARGET",
+            line1 = GameManager.ShirtName(clothing),
+            connector = "&",
+            line2 = GameManager.PantsName(clothing),
+            hint = "SPACE / CLICK AT THE RIGHT TIME",
+        };
+    }
+
+    // Extra card(s) between the target card and the minigame (also called on the prefab). None by default.
+    public virtual IEnumerator BeforeStage(GameUI ui, StageTarget target) { yield break; }
+
+    public virtual void SetupStage(StageTarget target) => SetupStage(target.clothing);
+
+    // ---- "Real life" death (see IrlDeathSequence) ----
+    public virtual IrlDeathKind IrlDeath => IrlDeathKind.Fall;
+
+    // What kills you (the car, the piano...). Null if it doesn't apply.
+    public virtual Sprite IrlThreatSprite => null;
+
+    // The place you walk through (behind the phone) while this minigame is on
+    public virtual WalkTheme Theme => WalkTheme.Street;
 
     public Vector3 GetCameraPosition()
     {
@@ -66,27 +118,16 @@ public abstract class WarioStage : MonoBehaviour
     public virtual void SetupStage(NPCAppearance.ClothingPart target)
     {
         targetClothing = target;
-        TimeRemaining = timeLimit;
-
-        // Primero se enfoca la cámara para saber qué parte del mundo se ve en el celular
-        if (RenderCameraFollow.Instance != null)
-        {
-            RenderCameraFollow.Instance.FocusOnStage(this);
-            view = RenderCameraFollow.Instance.GetVisibleWorldRect(spawnPoint.position.z);
-        }
-        else
-        {
-            view = new Rect(spawnPoint.position.x - 1f, spawnPoint.position.y - 5f, 1000f, 10f);
-        }
+        PrepareStage();
 
         List<NPCAppearance.ClothingPart> extraNPCPool = new List<NPCAppearance.ClothingPart>(availableCombinations);
         extraNPCPool.Remove(target);
 
         int extras = Mathf.Min(extraNPCsCount, extraNPCPool.Count);
 
-        // Los monitos aparecen DENTRO de la pantalla del celular (nunca entran desde fuera del marco):
-        // una fila que empieza en el spawnPoint o en el borde izquierdo visible, lo que esté más adentro.
-        // Luego se barajan las posiciones para que el objetivo no sea siempre el primero.
+        // Monitos spawn INSIDE the phone screen (they never walk in from outside the frame):
+        // a row starting at the spawnPoint or at the visible left edge, whichever is further in.
+        // The positions are shuffled so the target isn't always first.
         float startX = Mathf.Max(spawnPoint.position.x, view.xMin + screenMargin);
         List<Vector3> slots = new List<Vector3>();
         float currentXOffset = 0f;
@@ -107,9 +148,26 @@ public abstract class WarioStage : MonoBehaviour
         }
     }
 
+    // Starts the timer and focuses the camera first, to know which part of the world is visible on the phone.
+    // Stages without monitos call only this from their SetupStage.
+    protected void PrepareStage()
+    {
+        TimeRemaining = timeLimit;
+        Vector3 anchor = spawnPoint != null ? spawnPoint.position : transform.position;
+        if (RenderCameraFollow.Instance != null)
+        {
+            RenderCameraFollow.Instance.FocusOnStage(this);
+            view = RenderCameraFollow.Instance.GetVisibleWorldRect(anchor.z);
+        }
+        else
+        {
+            view = new Rect(anchor.x - 1f, anchor.y - 5f, 1000f, 10f);
+        }
+    }
+
     private void SpawnNPC(Vector3 position, NPCAppearance.ClothingPart clothing, bool isTarget)
     {
-        // Los monitos son hijos del stage: se destruyen junto con él
+        // Monitos are children of the stage: they're destroyed with it
         GameObject npcObj = Instantiate(npcPrefab, position, Quaternion.identity, transform);
 
         NPCAppearance appearance = npcObj.GetComponent<NPCAppearance>();
@@ -120,7 +178,7 @@ public abstract class WarioStage : MonoBehaviour
         {
             walker.clothingPart = clothing;
             walker.isTarget = isTarget;
-            walker.CanMove = false; // No caminan hasta que empieza el minijuego
+            walker.CanMove = false; // They don't walk until the minigame starts
             if (npcMoveSpeed > 0f) walker.moveSpeed = npcMoveSpeed;
             walker.SetWalkDirection(Vector3.right);
             walker.PopIn();
@@ -131,13 +189,15 @@ public abstract class WarioStage : MonoBehaviour
     public virtual void StartStage()
     {
         isActive = true;
+        autopilotMisses = Random.value < Autopilot.MissChance;
+        autopilotReactTime = Random.Range(0.5f, 1.2f);
         foreach (NPCWalker npc in spawnedNPCs)
         {
             if (npc != null) npc.CanMove = true;
         }
     }
 
-    // El timer vive en la clase base; los stages implementan OnStageUpdate.
+    // The timer lives in the base class; stages implement OnStageUpdate.
     protected virtual void Update()
     {
         if (!isActive) return;
@@ -149,15 +209,17 @@ public abstract class WarioStage : MonoBehaviour
             return;
         }
 
-        DespawnNPCsAtScreenEdge();
+        HandleScreenEdges();
         if (!isActive) return;
 
+        if (Autopilot.Enabled) AutopilotTick();
         OnStageUpdate();
     }
 
-    // Los monitos desaparecen antes de llegar al borde del celular.
-    // Si ya no queda ningún monito en pantalla, se falla.
-    private void DespawnNPCsAtScreenEdge()
+    // Monitos pop out before reaching the edge of the phone screen.
+    // If no monito is left on screen, the minigame is failed.
+    // (The drone minigames override it: there people leave and come back in.)
+    protected virtual void HandleScreenEdges()
     {
         bool anyoneLeft = false;
         foreach (NPCWalker npc in spawnedNPCs)
@@ -175,7 +237,33 @@ public abstract class WarioStage : MonoBehaviour
 
     protected abstract void OnStageUpdate();
 
-    // Llamar cuando la trampa se activa: si en trapResolveTime no golpeó a nadie, se falla.
+    // ---- Autopilot (see Autopilot.cs) ----
+
+    // Where the trap lands (world X) and how many seconds it takes to reach the monitos.
+    // Stages that don't override it are never triggered by the bot.
+    public virtual bool TryGetTrapAim(out float worldX, out float delay)
+    {
+        worldX = 0f;
+        delay = 0f;
+        return false;
+    }
+
+    // Presses when the target will be right under the trap when it arrives.
+    // When it decided to miss, it presses early, while the target is still walking toward it.
+    private void AutopilotTick()
+    {
+        if (timeLimit - TimeRemaining < autopilotReactTime) return;
+        if (!TryGetTrapAim(out float aimX, out float delay)) return;
+
+        NPCWalker target = spawnedNPCs.Find(n => n != null && n.isTarget && !n.IsDead && !n.IsGone);
+        if (target == null || !target.IsWalking) return;
+
+        float predicted = target.BodyCenter.x + target.WalkDirection.x * target.moveSpeed * delay;
+        float wanted = autopilotMisses ? aimX - 0.75f * target.WalkDirection.x : aimX;
+        if (Mathf.Abs(predicted - wanted) < 0.06f) Autopilot.Press();
+    }
+
+    // Call when the trap is triggered: if it hasn't hit anyone within trapResolveTime, it's a fail.
     protected void BeginTrapResolve()
     {
         StartCoroutine(TrapResolveRoutine());
@@ -187,7 +275,7 @@ public abstract class WarioStage : MonoBehaviour
         if (isActive) EndMinigame(false);
     }
 
-    // Altura de los pies y de la cabeza de los monitos (para colocar suelo y paredes automáticas)
+    // Height of the monitos' feet and heads (to place the automatic ground and walls)
     protected float NPCFeetY()
     {
         foreach (NPCWalker npc in spawnedNPCs)
@@ -202,9 +290,9 @@ public abstract class WarioStage : MonoBehaviour
         return spawnPoint.position.y;
     }
 
-    // Elige al monito que REALMENTE está debajo de la trampa: su cuerpo debe tocar la zona en vertical
-    // y su centro estar dentro de la parte central de la trampa. Si hay varios, el más centrado.
-    // Así rozar al monito de al lado ya no cuenta.
+    // Picks the monito that is REALLY under the trap: its body must touch the zone vertically
+    // and its center must be inside the middle part of the trap. If several are, the most centered one.
+    // This way grazing the monito next to it doesn't count.
     public NPCWalker FindVictim(Bounds trapZone, float centerTolerance)
     {
         NPCWalker best = null;
@@ -225,7 +313,7 @@ public abstract class WarioStage : MonoBehaviour
         return best;
     }
 
-    // La trampa golpeó a un monito
+    // The trap hit a monito
     public void OnTrapHitNPC(NPCWalker npc)
     {
         if (!isActive || npc == null || npc.IsDead) return;
@@ -235,7 +323,7 @@ public abstract class WarioStage : MonoBehaviour
         EndMinigame(isMatch);
     }
 
-    // La trampa no golpeó a nadie (chocó con el suelo/pared o la alcantarilla estaba vacía)
+    // The trap hit nobody (crashed into the ground/wall, or the sewer was empty)
     public void OnTrapMissed()
     {
         if (!isActive) return;
@@ -250,7 +338,7 @@ public abstract class WarioStage : MonoBehaviour
         isFinished = true;
         succeeded = success;
         StopAllCoroutines();
-        // El GameManager se encarga de mostrar la card de resultado y destruir el stage.
+        // The GameManager shows the result card and destroys the stage.
     }
 
     private static void Shuffle<T>(List<T> list)

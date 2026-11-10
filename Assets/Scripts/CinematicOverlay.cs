@@ -3,8 +3,8 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-// Capa a pantalla completa para la secuencia final: look de cámara de vigilancia (CCTV),
-// textos, fundidos a negro y créditos. Se construye por código la primera vez que se usa.
+// Full-screen layer for the ending: surveillance camera (CCTV) look, captions,
+// fades to black and credits. Built in code the first time it's used.
 public class CinematicOverlay : MonoBehaviour
 {
     public string cameraLabel = "CAM 07  -  5TH AVE & MAIN ST";
@@ -17,6 +17,7 @@ public class CinematicOverlay : MonoBehaviour
     private TextMeshProUGUI timeText;
     private Image fade;
     private TextMeshProUGUI caption;
+    private TextGlow captionGlow;
     private CanvasGroup creditsGroup;
     private TextMeshProUGUI creditRole;
     private TextMeshProUGUI creditName;
@@ -53,11 +54,14 @@ public class CinematicOverlay : MonoBehaviour
         SetFade(target);
     }
 
-    // verticalPosition: 0 = abajo, 1 = arriba
-    public void ShowCaption(string text, Color color, float verticalPosition, float size = 48f)
+    // verticalPosition: 0 = bottom, 1 = top
+    // glow: color of the neon halo behind the text (orange if not given)
+    public void ShowCaption(string text, Color color, float verticalPosition, float size = 48f, Color? glow = null)
     {
         caption.text = text;
         caption.color = color;
+        caption.alpha = 1f;
+        captionGlow.SetColor(glow ?? new Color(1f, 0.45f, 0.05f));
         caption.fontSize = size;
         caption.rectTransform.anchorMin = new Vector2(0.05f, verticalPosition - 0.12f);
         caption.rectTransform.anchorMax = new Vector2(0.95f, verticalPosition + 0.12f);
@@ -67,7 +71,12 @@ public class CinematicOverlay : MonoBehaviour
 
     public void HideCaption() => caption.gameObject.SetActive(false);
 
-    // Un crédito: aparece (fade in), se queda y desaparece (fade out)
+    // For flickering signs (the halo follows the text's alpha)
+    public void SetCaptionAlpha(float alpha) => caption.alpha = alpha;
+
+    public RectTransform CaptionRect => caption.rectTransform;
+
+    // One credit: fades in, holds, fades out
     public IEnumerator ShowCredit(string role, string name, float hold = 2.2f, float fadeTime = 0.8f)
     {
         creditRole.text = role;
@@ -97,19 +106,19 @@ public class CinematicOverlay : MonoBehaviour
     {
         if (canvas == null || !canvas.gameObject.activeSelf || !cctvRoot.activeSelf) return;
 
-        // REC parpadeando y reloj corriendo
+        // Blinking REC and running clock
         recText.alpha = Mathf.Repeat(Time.time, 1f) < 0.6f ? 1f : 0f;
         fakeClock = fakeClock.AddSeconds(Time.deltaTime);
         timeText.text = fakeClock.ToString("yyyy-MM-dd   HH:mm:ss");
 
-        // Scanlines bajando y algún parpadeo de señal
+        // Scanlines rolling down and the odd signal flicker
         scanOffset = Mathf.Repeat(scanOffset + Time.deltaTime * 0.6f, 1f);
         float lines = Screen.height / 3f;
         scanlines.uvRect = new Rect(0f, scanOffset, 1f, lines);
         scanlines.color = new Color(1f, 1f, 1f, Random.value < 0.03f ? 0.6f : 0.35f);
     }
 
-    // ---------------- Construcción ----------------
+    // ---------------- Building ----------------
 
     private void Build()
     {
@@ -127,7 +136,7 @@ public class CinematicOverlay : MonoBehaviour
         cctvRoot.transform.SetParent(canvasObj.transform, false);
         Stretch(cctvRoot.GetComponent<RectTransform>());
 
-        // Tinte verdoso de cámara de seguridad
+        // Greenish security camera tint
         Image tint = NewImage(cctvRoot.transform, "Tint", new Color(0.2f, 0.45f, 0.25f, 0.18f));
         Stretch(tint.rectTransform);
 
@@ -137,7 +146,7 @@ public class CinematicOverlay : MonoBehaviour
         RawImage vignette = NewRawImage(cctvRoot.transform, "Vignette", VignetteTexture());
         Stretch(vignette.rectTransform);
 
-        // Esquinas tipo visor
+        // Viewfinder corners
         for (int corner = 0; corner < 4; corner++) CreateCornerBracket(cctvRoot.transform, corner);
 
         recText = NewText(cctvRoot.transform, "REC", "<color=#ff2a2a>●</color> REC", 34, Color.white, TextAlignmentOptions.TopLeft);
@@ -152,18 +161,21 @@ public class CinematicOverlay : MonoBehaviour
         TextMeshProUGUI netText = NewText(cctvRoot.transform, "Network", networkLabel, 22, new Color(1f, 1f, 1f, 0.8f), TextAlignmentOptions.BottomRight);
         Anchor(netText.rectTransform, new Vector2(0.5f, 0.06f), new Vector2(0.94f, 0.13f));
 
-        // --- Textos grandes ---
+        // --- Big captions ---
         caption = NewText(canvasObj.transform, "Caption", "", 48, Color.white, TextAlignmentOptions.Center);
         caption.fontStyle = FontStyles.Bold;
-        caption.outlineWidth = 0.25f;
+        caption.fontStyle = FontStyles.Bold | FontStyles.Italic;
+        caption.characterSpacing = 6f;
+        caption.outlineWidth = 0.3f;
         caption.outlineColor = Color.black;
+        captionGlow = TextGlow.Apply(caption, new Color(1f, 0.45f, 0.05f), 10f, 0.4f, 7f);
         caption.gameObject.SetActive(false);
 
-        // --- Fundido a negro (encima del CCTV, debajo de los créditos) ---
+        // --- Fade to black (above the CCTV, below the credits) ---
         fade = NewImage(canvasObj.transform, "Fade", new Color(0f, 0f, 0f, 0f));
         Stretch(fade.rectTransform);
 
-        // --- Créditos ---
+        // --- Credits ---
         GameObject credits = new GameObject("Credits", typeof(RectTransform), typeof(CanvasGroup));
         credits.transform.SetParent(canvasObj.transform, false);
         Stretch(credits.GetComponent<RectTransform>());

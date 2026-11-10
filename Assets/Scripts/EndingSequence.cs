@@ -3,25 +3,31 @@ using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 
-// Cinemática final al llegar a la puntuación objetivo, a pantalla completa con look de cámara de vigilancia:
-// los monitos cruzan la calle, pasan drones (en vez de pájaros) con un banner "THANKS FOR YOUR SERVICE",
-// un dron dispara a algunos monitos, salen los créditos y se regresa al menú de inicio.
+// Ending cutscene when the target score is reached, full screen with a surveillance camera look:
+// monitos cross the street, two drones fly in carrying a "THANKS FOR PLAYING" banner between them
+// (one at each end) and leave; then the freshly trained drones arrive (yours in front, with its star)
+// and shoot the monitos, "THANKS FOR YOUR SERVICE" lights up, the credits roll and the game goes back to the start menu.
 public class EndingSequence : MonoBehaviour
 {
-    [Header("Monitos")]
+    [Header("Crowd")]
     public int walkerCount = 8;
     public Vector2 walkSpeedRange = new Vector2(0.6f, 1.1f);
     public float panicSpeedMultiplier = 2.5f;
 
     [Header("Drones")]
-    public int droneCount = 3;
     public float droneSpeed = 1.6f;
-    public string bannerText = "THANKS FOR YOUR SERVICE";
-    [Tooltip("Opcional: sprite propio para el dron. Si está vacío se usa uno pixel-art generado por código")]
+    public string bannerText = "THANKS FOR PLAYING";
+    [Tooltip("The big sign that lights up after the drones have killed the people")]
+    public string finalMessage = "THANKS FOR YOUR SERVICE";
+    [Tooltip("Seconds the banner stays in the middle of the screen")]
+    public float bannerHoldSeconds = 2.8f;
+    [Tooltip("Optional custom drone sprite. If empty, a pixel-art one generated in code is used")]
     public Sprite droneSpriteOverride;
 
-    [Header("Disparos")]
-    public int victims = 4;
+    [Header("Shooting")]
+    [Tooltip("Freshly trained drones that come in after the banner (the first one is yours)")]
+    public int shooterCount = 3;
+    public int victims = 5;
     public float bulletSpeed = 9f;
 
     private const int DroneOrder = 50;
@@ -32,15 +38,15 @@ public class EndingSequence : MonoBehaviour
     private float viewLeft, viewRight, viewTop, streetY, droneY;
     private bool running;
 
-    [Header("Créditos")]
+    [Header("Credits")]
     public string[] creditRoles = { "DIRECTOR & PROGRAMMER", "ARTIST" };
     public string[] creditNames = { "Gold", "Luis Ortega" };
 
     private CinematicOverlay overlay;
 
-    // La secuencia final ya NO se ve en el celular: ocupa toda la pantalla como si fuera
-    // una cámara de vigilancia — el "aha": todo este tiempo te estaban grabando.
-    public IEnumerator Play(WarioStage backdropPrefab, Canvas phoneCanvas, StreetBackground street)
+    // The ending is NOT shown on the phone: it takes the whole screen, as if it were
+    // a surveillance camera. The "aha" moment: you were being recorded the whole time.
+    public IEnumerator Play(WarioStage backdropPrefab, Canvas phoneCanvas, WalkingBackground street)
     {
         running = true;
         walkers.Clear();
@@ -51,15 +57,15 @@ public class EndingSequence : MonoBehaviour
         overlay.HideCaption();
         overlay.SetFade(0f);
 
-        // 1. Se apaga todo a negro (el celular incluido)
+        // 1. Everything fades to black (the phone too)
         yield return overlay.FadeTo(1f, 0.8f);
         yield return new WaitForSeconds(0.4f);
 
         if (phoneCanvas != null) phoneCanvas.enabled = false;
         if (street != null) street.SetVisible(false);
 
-        // 2. Escenario: se reutiliza un minijuego (la calle) como fondo, sin su lógica,
-        //    y la cámara del minijuego pasa a renderizar a pantalla completa
+        // 2. Set: a minigame (the street) is reused as the backdrop, without its logic,
+        //    and the minigame camera renders to the full screen
         WarioStage backdrop = Instantiate(backdropPrefab);
         backdrop.enabled = false;
         root = backdrop.transform;
@@ -78,14 +84,14 @@ public class EndingSequence : MonoBehaviour
         }
         CalculateView(backdrop);
 
-        // 3. Monitos cruzando de un lado a otro
+        // 3. Monitos crossing back and forth
         if (backdrop.npcPrefab != null)
         {
             for (int i = 0; i < walkerCount; i++) SpawnWalker(backdrop.npcPrefab, i);
         }
         StartCoroutine(WrapWalkersRoutine());
 
-        // 4. Corte a la cámara de vigilancia, con un par de saltos de señal
+        // 4. Cut to the surveillance camera, with a couple of signal glitches
         overlay.SetCCTV(true);
         overlay.SetFade(0f);
         yield return new WaitForSeconds(0.08f);
@@ -98,71 +104,84 @@ public class EndingSequence : MonoBehaviour
         overlay.SetFade(0f);
         yield return new WaitForSeconds(1.2f);
 
-        overlay.ShowCaption($"{GameManager.Instance?.targetScore ?? 1000} POINTS\n<size=60%>MISSION ACCOMPLISHED</size>", new Color(1f, 0.85f, 0.2f), 0.72f, 56f);
+        overlay.ShowCaption($"{GameManager.Instance?.targetScore ?? 1000} POINTS\n<size=60%>TRAINING COMPLETE</size>", new Color(1f, 0.86f, 0.1f), 0.72f, 60f);
         yield return new WaitForSeconds(2.5f);
         overlay.HideCaption();
 
-        // 5. Parvada de drones con el banner
-        List<Transform> drones = new List<Transform>();
-        for (int i = 0; i < droneCount; i++)
-        {
-            Vector3 pos = new Vector3(viewRight + 1f + i * 0.9f, droneY + (i % 2) * 0.35f, 0f);
-            drones.Add(CreateDrone(pos, i == 0));
-        }
+        // 5. Two drones carry the banner in (one at each end), hold it in the middle and fly off
+        TrailerCapture.Log("ending drones");
+        yield return BannerFlight();
+        yield return new WaitForSeconds(0.6f);
 
-        float flockEnd = viewLeft - 3.5f;
-        while (drones[drones.Count - 1].position.x > flockEnd)
+        // 6. The newly trained drones arrive (yours first, with its star and name) and open fire
+        TrailerCapture.Log("ending shooters");
+        List<Transform> shooters = new List<Transform>();
+        for (int i = 0; i < shooterCount; i++)
         {
-            foreach (Transform d in drones) d.position += Vector3.left * droneSpeed * Time.deltaTime;
-            yield return null;
+            // A bit lower than the banner flock
+            Transform s = CreateDrone(new Vector3(viewLeft - 0.8f - i * 0.7f, droneY - 0.6f + (i % 2) * 0.25f, 0f));
+            if (i == 0) AddPlayerBadge(s);
+            shooters.Add(s);
         }
-
-        // 6. Un dron regresa y dispara a algunos monitos
-        for (int i = 1; i < drones.Count; i++) Destroy(drones[i].gameObject);
-        Transform shooter = drones[0];
-        shooter.position = new Vector3(viewLeft - 0.6f, droneY, 0f);
-        yield return MoveTo(shooter, new Vector3((viewLeft + viewRight) / 2f, droneY, 0f), droneSpeed * 1.5f);
+        // They fly in together (yours ends up on the right, in front) and wait until all are in place
+        float longestTrip = 0f;
+        for (int i = 0; i < shooters.Count; i++)
+        {
+            float x = Mathf.Lerp(viewRight - 0.9f, viewLeft + 0.9f, shooters.Count == 1 ? 0.5f : (float)i / (shooters.Count - 1));
+            Vector3 slot = new Vector3(x, shooters[i].position.y, 0f);
+            longestTrip = Mathf.Max(longestTrip, Vector3.Distance(shooters[i].position, slot));
+            StartCoroutine(MoveTo(shooters[i], slot, droneSpeed * 2.5f));
+        }
+        yield return new WaitForSeconds(longestTrip / (droneSpeed * 2.5f) + 0.3f);
 
         int kills = 0;
         int attempts = 0;
         while (kills < victims && attempts < victims * 4)
         {
             attempts++;
-            NPCWalker target = PickVisibleTarget(shooter.position.x);
+            NPCWalker target = PickVisibleTarget((viewLeft + viewRight) / 2f + Random.Range(-1f, 1f));
             if (target == null)
             {
                 yield return new WaitForSeconds(0.3f);
                 continue;
             }
 
-            // Se alinea sobre el objetivo
+            // The closest drone takes the shot (yours fires first)
+            Transform shooter = kills == 0 ? shooters[0] : ClosestTo(shooters, target.BodyCenter.x);
+
+            // Lines up over the target
             float aimTime = 0.5f;
             while (aimTime > 0f && target != null && !target.IsDead)
             {
                 aimTime -= Time.deltaTime;
-                Vector3 desired = new Vector3(target.BodyCenter.x, droneY, 0f);
+                Vector3 desired = new Vector3(target.BodyCenter.x, shooter.position.y, 0f);
                 shooter.position = Vector3.MoveTowards(shooter.position, desired, droneSpeed * 2f * Time.deltaTime);
                 yield return null;
             }
 
             if (target == null || target.IsDead) continue;
+            float shotX = target.BodyCenter.x;
             yield return Shoot(shooter.position + Vector3.down * 0.25f, target);
             kills++;
 
-            if (kills == 1) Panic();
-            yield return new WaitForSeconds(0.35f);
+            if (kills == 1) Panic(shotX);
+            yield return new WaitForSeconds(0.25f);
         }
 
-        // 7. El dron se va y aparece el mensaje
-        yield return MoveTo(shooter, new Vector3(viewRight + 1.5f, viewTop + 1f, 0f), droneSpeed * 2f);
-        overlay.ShowCaption(bannerText, Color.white, 0.5f, 72f);
-        yield return new WaitForSeconds(2.5f);
+        // 7. The drones leave and the message shows up
+        for (int i = 0; i < shooters.Count; i++)
+            StartCoroutine(MoveTo(shooters[i], new Vector3(viewRight + 1.5f + i * 0.5f, viewTop + 1f, 0f), droneSpeed * 2f));
+        yield return new WaitForSeconds(1.8f);
+        TrailerCapture.Log("ending thanks");
+        overlay.ShowCaption(finalMessage, new Color(1f, 0.86f, 0.1f), 0.5f, 96f, new Color(1f, 0.35f, 0.05f));
+        yield return SignFlickerOn();
+        yield return new WaitForSeconds(2.6f);
 
         yield return overlay.FadeTo(1f, 1.2f);
         overlay.HideCaption();
         overlay.SetCCTV(false);
 
-        // 8. Créditos sobre negro (fade in / fade out)
+        // 8. Credits over black (fade in / fade out)
         yield return new WaitForSeconds(0.5f);
         for (int i = 0; i < Mathf.Min(creditRoles.Length, creditNames.Length); i++)
         {
@@ -170,7 +189,7 @@ public class EndingSequence : MonoBehaviour
             yield return new WaitForSeconds(0.3f);
         }
 
-        // 9. Se restaura todo para volver al menú
+        // 9. Restore everything and go back to the menu
         running = false;
         walkers.Clear();
         Destroy(backdrop.gameObject);
@@ -188,8 +207,8 @@ public class EndingSequence : MonoBehaviour
         overlay.Hide();
     }
 
-    // Encuadra la calle a pantalla completa: el sprite más grande del escenario (el paso peatonal)
-    // llena la pantalla sin dejar bordes vacíos.
+    // Frames the street full screen: the biggest sprite of the set (the crosswalk)
+    // fills the screen without empty borders.
     private static void FrameFullScreen(Camera cam, WarioStage backdrop)
     {
         SpriteRenderer biggest = null;
@@ -246,8 +265,8 @@ public class EndingSequence : MonoBehaviour
         walkers.Add(walker);
     }
 
-    // Los monitos nunca cruzan el borde del celular: al llegar al borde desaparecen
-    // y vuelven a aparecer del otro lado, dentro de la pantalla.
+    // Monitos never cross the edge of the screen: when they reach it they vanish
+    // and pop back in on the other side, inside the screen.
     private IEnumerator WrapWalkersRoutine()
     {
         while (running)
@@ -275,11 +294,17 @@ public class EndingSequence : MonoBehaviour
         w.PopIn();
     }
 
-    private void Panic()
+    // Everybody runs away from the first shot: faster, legs pumping faster, and no more polite queue
+    // (they push past each other)
+    private void Panic(float shotX)
     {
         foreach (NPCWalker w in walkers)
         {
-            if (w != null && !w.IsDead) w.moveSpeed *= panicSpeedMultiplier;
+            if (w == null || w.IsDead) continue;
+            w.moveSpeed *= panicSpeedMultiplier;
+            w.personalSpace = 0f;
+            w.SetWalkDirection(w.transform.position.x < shotX ? Vector3.left : Vector3.right);
+            foreach (Animator legs in w.GetComponentsInChildren<Animator>(true)) legs.speed = panicSpeedMultiplier;
         }
     }
 
@@ -304,7 +329,8 @@ public class EndingSequence : MonoBehaviour
 
     private IEnumerator Shoot(Vector3 from, NPCWalker target)
     {
-        GameObject bullet = CreateSprite("Bullet", RuntimeSprites.Bullet(), from, DroneOrder + 2);
+        GameObject bullet = CreateSprite("Bullet", GameSprites.Bullet(), from, DroneOrder + 2);
+        SoundFX.Play(Sfx.DroneShot);
 
         while (target != null && !target.IsDead)
         {
@@ -315,17 +341,21 @@ public class EndingSequence : MonoBehaviour
         }
 
         Destroy(bullet);
-        if (target != null && !target.IsDead) target.Kill(); // Kill() suelta la sangre
+        if (target != null && !target.IsDead)
+        {
+            SoundFX.Play(Sfx.DroneHit);
+            target.Kill(); // Kill() spills the blood
+        }
     }
 
-    private Transform CreateDrone(Vector3 position, bool withBanner)
+    private Transform CreateDrone(Vector3 position)
     {
         GameObject drone = new GameObject("Drone");
         drone.transform.SetParent(root, true);
         drone.transform.position = position;
 
-        Sprite frameA = droneSpriteOverride != null ? droneSpriteOverride : RuntimeSprites.Drone(0);
-        Sprite frameB = droneSpriteOverride != null ? droneSpriteOverride : RuntimeSprites.Drone(1);
+        Sprite frameA = droneSpriteOverride != null ? droneSpriteOverride : GameSprites.Drone(0);
+        Sprite frameB = droneSpriteOverride != null ? droneSpriteOverride : GameSprites.Drone(1);
 
         GameObject body = CreateSprite("Body", frameA, position, DroneOrder);
         body.transform.SetParent(drone.transform, true);
@@ -334,46 +364,155 @@ public class EndingSequence : MonoBehaviour
         visual.body = body.GetComponent<SpriteRenderer>();
         visual.frames = new[] { frameA, frameB };
 
-        if (withBanner) CreateBanner(drone.transform);
         return drone.transform;
     }
 
-    private void CreateBanner(Transform drone)
+    private static Transform ClosestTo(List<Transform> drones, float x)
     {
-        const float bannerWidth = 2.6f;
-        const float bannerHeight = 0.36f;
-        const float gap = 0.35f;
+        Transform best = drones[0];
+        foreach (Transform d in drones)
+            if (Mathf.Abs(d.position.x - x) < Mathf.Abs(best.position.x - x)) best = d;
+        return best;
+    }
 
-        Vector3 dronePos = drone.position;
-        float bannerCenterX = 0.4f + gap + bannerWidth / 2f;
+    // The player's drone: a small gold star painted on its body (where the lights are),
+    // child of the body so it bobs with it
+    private void AddPlayerBadge(Transform drone)
+    {
+        Transform body = drone.Find("Body");
+        if (body == null) return;
+        // Body center of GameSprites.Drone: pixel (11.5, 5) of 24x12 at 30 px per unit
+        GameObject star = CreateSprite("Star", GameSprites.Star(), body.position + new Vector3(-0.017f, -0.033f, -0.01f), DroneOrder + 1);
+        star.transform.localScale = Vector3.one * 0.17f;
+        star.transform.SetParent(body, true);
+    }
 
-        // Cuerda
-        GameObject rope = CreateSprite("Rope", RuntimeSprites.Pixel(), dronePos + new Vector3(0.4f + gap / 2f, -0.1f, 0f), DroneOrder - 2);
-        rope.GetComponent<SpriteRenderer>().color = new Color(0.15f, 0.15f, 0.15f);
-        rope.transform.localScale = new Vector3(gap, 0.02f, 1f);
-        rope.transform.SetParent(drone, true);
+    // ---------------- Banner ----------------
 
-        // Tela del banner
-        GameObject cloth = CreateSprite("Banner", RuntimeSprites.Pixel(), dronePos + new Vector3(bannerCenterX, -0.1f, 0f), DroneOrder - 1);
-        cloth.GetComponent<SpriteRenderer>().color = new Color(1f, 0.96f, 0.85f);
-        cloth.transform.localScale = new Vector3(bannerWidth, bannerHeight, 1f);
-        cloth.transform.SetParent(drone, true);
+    // The banner hangs between two drones. It flies in from the right, stops in the middle
+    // swaying a little (long enough to read it) and then the drones lift it off the top of the screen.
+    private IEnumerator BannerFlight()
+    {
+        float viewWidth = viewRight - viewLeft;
+        float width = Mathf.Min(4.4f, viewWidth * 0.6f);
+        float height = width * 0.16f;
 
-        // Texto
+        Transform group = BuildBanner(width, height);
+        // Low enough that the two drones above the banner are inside the frame
+        float droneTop = height / 2f + 0.42f + 0.35f; // drone lift + half a drone + a margin
+        Vector3 center = new Vector3((viewLeft + viewRight) / 2f, Mathf.Min(droneY - 0.1f, viewTop - droneTop), 0f);
+        Vector3 start = new Vector3(viewRight + width / 2f + 1.2f, center.y + 0.3f, 0f);
+        Vector3 exit = new Vector3(center.x - 0.6f, viewTop + height + 1.5f, 0f);
+        group.position = start;
+
+        // In: decelerates into place
+        float t = 0f;
+        const float inTime = 2.2f;
+        while (t < inTime)
+        {
+            t += Time.deltaTime;
+            float k = 1f - Mathf.Pow(1f - Mathf.Clamp01(t / inTime), 3f);
+            group.position = Vector3.Lerp(start, center, k);
+            group.localRotation = Quaternion.Euler(0f, 0f, (1f - k) * 6f); // leaning into the turn
+            yield return null;
+        }
+
+        // Hold: gentle sway
+        t = 0f;
+        while (t < bannerHoldSeconds)
+        {
+            t += Time.deltaTime;
+            group.position = center + new Vector3(0f, Mathf.Sin(t * 2.2f) * 0.05f, 0f);
+            group.localRotation = Quaternion.Euler(0f, 0f, Mathf.Sin(t * 1.7f) * 2.5f);
+            yield return null;
+        }
+
+        // Out: accelerates up and away
+        Vector3 from = group.position;
+        t = 0f;
+        const float outTime = 1.6f;
+        while (t < outTime)
+        {
+            t += Time.deltaTime;
+            float k = Mathf.Clamp01(t / outTime);
+            group.position = Vector3.Lerp(from, exit, k * k);
+            group.localRotation = Quaternion.Euler(0f, 0f, -k * 8f);
+            yield return null;
+        }
+        Destroy(group.gameObject);
+    }
+
+    // Builds: a drone at each end, ropes down to the banner, a dark plate with a yellow border
+    // and big yellow glowing text (same look as the game's other signs)
+    private Transform BuildBanner(float width, float height)
+    {
+        Transform group = new GameObject("Banner Flight").transform;
+        group.SetParent(root, false);
+
+        float droneLift = height / 2f + 0.42f;
+        foreach (float side in new[] { -1f, 1f })
+        {
+            Transform drone = CreateDrone(Vector3.zero);
+            drone.SetParent(group, false);
+            drone.localPosition = new Vector3(side * (width / 2f - 0.05f), droneLift, 0f);
+
+            GameObject rope = CreateSprite("Rope", GameSprites.Pixel(), Vector3.zero, DroneOrder - 2);
+            rope.transform.SetParent(group, false);
+            rope.transform.localPosition = new Vector3(side * (width / 2f - 0.05f), height / 2f + 0.17f, 0f);
+            rope.transform.localScale = new Vector3(0.025f, 0.34f, 1f);
+            rope.GetComponent<SpriteRenderer>().color = new Color(0.12f, 0.12f, 0.12f);
+        }
+
+        Color yellow = new Color(1f, 0.86f, 0.1f);
+        LocalRect(group, "Banner Plate", 0f, 0f, width, height, new Color(0.07f, 0.05f, 0.12f), DroneOrder - 1);
+        const float border = 0.05f;
+        LocalRect(group, "Border Top", 0f, height / 2f - border / 2f, width, border, yellow, DroneOrder);
+        LocalRect(group, "Border Bottom", 0f, -height / 2f + border / 2f, width, border, yellow, DroneOrder);
+        LocalRect(group, "Border Left", -width / 2f + border / 2f, 0f, border, height, yellow, DroneOrder);
+        LocalRect(group, "Border Right", width / 2f - border / 2f, 0f, border, height, yellow, DroneOrder);
+
         GameObject textObj = new GameObject("Banner Text");
-        textObj.transform.SetParent(drone, false);
-        textObj.transform.position = dronePos + new Vector3(bannerCenterX, -0.1f, -0.01f);
+        textObj.transform.SetParent(group, false);
+        textObj.transform.localPosition = new Vector3(0f, 0f, -0.01f);
         TextMeshPro text = textObj.AddComponent<TextMeshPro>();
         text.text = bannerText;
-        text.color = new Color(0.7f, 0.05f, 0.05f);
-        text.fontStyle = FontStyles.Bold;
+        text.color = yellow;
+        text.fontStyle = FontStyles.Bold | FontStyles.Italic;
+        text.characterSpacing = 4f;
         text.alignment = TextAlignmentOptions.Center;
         text.enableWordWrapping = false;
         text.enableAutoSizing = true;
         text.fontSizeMin = 0.05f;
         text.fontSizeMax = 20f;
-        text.rectTransform.sizeDelta = new Vector2(bannerWidth * 0.92f, bannerHeight * 0.8f);
-        text.sortingOrder = DroneOrder + 1;
+        text.outlineWidth = 0.28f;
+        text.outlineColor = Color.black;
+        text.rectTransform.sizeDelta = new Vector2(width * 0.88f, height * 0.72f);
+        text.sortingOrder = DroneOrder + 3;
+        TextGlow.Apply(text, new Color(1f, 0.4f, 0.05f), height * 0.07f, 0.45f, height * 0.06f);
+
+        return group;
+    }
+
+    private void LocalRect(Transform parent, string name, float x, float y, float w, float h, Color color, int order)
+    {
+        GameObject go = CreateSprite(name, GameSprites.Pixel(), Vector3.zero, order);
+        go.transform.SetParent(parent, false);
+        go.transform.localPosition = new Vector3(x, y, 0f);
+        go.transform.localScale = new Vector3(w, h, 1f);
+        go.GetComponent<SpriteRenderer>().color = color;
+    }
+
+    // The final sign turns on like a neon: a few sparks, then it stays lit
+    private IEnumerator SignFlickerOn()
+    {
+        float[] steps = { 0.06f, 0.09f, 0.05f, 0.16f, 0.04f, 0.07f };
+        for (int i = 0; i < steps.Length; i++)
+        {
+            overlay.SetCaptionAlpha(i % 2 == 0 ? 1f : 0.1f);
+            yield return new WaitForSeconds(steps[i]);
+        }
+        overlay.SetCaptionAlpha(1f);
+        SoundFX.Play(Sfx.Success);
     }
 
     private GameObject CreateSprite(string name, Sprite sprite, Vector3 position, int order)

@@ -28,7 +28,7 @@ public class RenderCameraFollow : MonoBehaviour
         }
     }
 
-    // Área del mundo (en el plano z = planeZ) que se ve en la pantalla del celular
+    // World area (on the z = planeZ plane) visible on the phone screen
     public Rect GetVisibleWorldRect(float planeZ = 0f)
     {
         Vector3 pos = transform.position;

@@ -46,5 +46,8 @@ public class NPCAppearance : MonoBehaviour
         if((clothing & ClothingPart.WhiteShirt) != 0 && whiteShirt) whiteShirt.SetActive(true);
         if((clothing & ClothingPart.BlackPants) != 0 && blackPants) blackPants.SetActive(true);
         if((clothing & ClothingPart.BluePants) != 0 && bluePants) bluePants.SetActive(true);
+
+        // Head and shirt follow the walk cycle's bob (see MonitoBodySync)
+        if (GetComponent<MonitoBodySync>() == null) gameObject.AddComponent<MonitoBodySync>();
     }
 }

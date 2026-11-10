@@ -8,11 +8,15 @@ public class PianoDropStage : WarioStage
     [SerializeField] private Sprite workerSpriteChanged;
     [SerializeField] private Animator craneAnim;
 
-    [Header("Choque")]
-    [Tooltip("Si el prefab no tiene un TrapBlocker, se crea un suelo a esta distancia por debajo de los pies de los monitos")]
+    [Header("Crash")]
+    [Tooltip("If the prefab has no TrapBlocker, a ground is created this far below the monitos' feet")]
     [SerializeField] private float autoGroundOffset = 0.05f;
 
     private bool dropped = false;
+
+    public override WalkTheme Theme => WalkTheme.Construction;
+    public override IrlDeathKind IrlDeath => IrlDeathKind.CrushedFromAbove;
+    public override Sprite IrlThreatSprite => pianoRigidbody != null && pianoRigidbody.TryGetComponent(out SpriteRenderer sr) ? sr.sprite : null;
     private bool freezeCrane = false;
 
     public override void SetupStage(NPCAppearance.ClothingPart target)
@@ -21,12 +25,12 @@ public class PianoDropStage : WarioStage
 
         if (pianoRigidbody != null)
         {
-            // El piano espera colgado hasta que se suelta
+            // The piano hangs until it's dropped
             pianoRigidbody.bodyType = RigidbodyType2D.Kinematic;
             pianoRigidbody.velocity = Vector2.zero;
         }
 
-        // Suelo contra el que se estrella el piano si no aplasta a nadie
+        // Ground the piano crashes into if it doesn't crush anyone
         if (pianoRigidbody != null && GetComponentInChildren<TrapBlocker>() == null)
         {
             Vector3 groundPos = new Vector3(pianoRigidbody.position.x, NPCFeetY() - autoGroundOffset - 0.15f, 0f);
@@ -46,7 +50,7 @@ public class PianoDropStage : WarioStage
     {
         base.Update();
 
-        // Congela la grúa al final de su ciclo después de soltar el piano
+        // Freeze the crane at the end of its loop after the piano is dropped
         if (freezeCrane && craneAnim != null)
         {
             float progress = craneAnim.GetCurrentAnimatorStateInfo(0).normalizedTime % 1f;
@@ -62,6 +66,7 @@ public class PianoDropStage : WarioStage
     {
         dropped = true;
         freezeCrane = true;
+        SoundFX.Play(Sfx.PianoWhistle);
 
         if (pianoRigidbody != null)
         {
@@ -77,6 +82,17 @@ public class PianoDropStage : WarioStage
         }
 
         BeginTrapResolve();
+    }
+
+    public override bool TryGetTrapAim(out float worldX, out float delay)
+    {
+        worldX = delay = 0f;
+        if (pianoRigidbody == null || !pianoRigidbody.TryGetComponent(out Collider2D col)) return false;
+        Bounds b = col.bounds;
+        worldX = b.center.x;
+        float gravity = Mathf.Abs(Physics2D.gravity.y) * dropGravityScale;
+        delay = Mathf.Sqrt(2f * Mathf.Max(0f, b.min.y - NPCHeadY()) / gravity);
+        return true;
     }
 
     public void OnPianoHitNPC(NPCWalker npc) => OnTrapHitNPC(npc);

@@ -8,25 +8,26 @@ public class NPCWalker : MonoBehaviour
     public NPCAppearance.ClothingPart clothingPart;
     public bool isTarget = false;
 
-    [Tooltip("Hace pausas aleatorias al caminar")]
+    [Tooltip("Makes random stops while walking")]
     public bool randomStops = true;
 
-    [Tooltip("Sale sangre al morir")]
+    [Tooltip("Bleeds when killed")]
     public bool bleedOnDeath = true;
 
-    // Mientras sea false el monito se queda quieto (por ejemplo mientras se muestra la card)
+    // While false the monito stands still (e.g. while the card is showing)
     public bool CanMove { get; set; } = true;
     public bool IsDead { get; private set; }
-    // Ya desapareció de la pantalla (sin morir)
+    // Already left the screen (without dying)
     public bool IsGone { get; private set; }
     public bool IsPopping { get; private set; }
+    public bool IsWalking => !IsDead && !IsGone && CanMove && !isStopped;
     public Vector3 WalkDirection { get; private set; } = Vector3.right;
 
     private bool isStopped = false;
     private Vector3 baseScale;
     private float facing = 1f;
 
-    // Cuerpo visible (cabeza a pies) en espacio local del monito, sin escala
+    // Visible body (head to feet) in the monito's local space, unscaled
     private Vector2 localBodyCenter;
     private Vector2 localBodySize = new Vector2(0.15f, 0.5f);
 
@@ -36,8 +37,8 @@ public class NPCWalker : MonoBehaviour
         FitBodyToSprites();
     }
 
-    // El collider del prefab solo cubría la cabeza; lo ajustamos a todo el cuerpo (cabeza a pies),
-    // un poco más angosto que el dibujo para que solo cuenten golpes "de verdad".
+    // The prefab collider only covered the head; fit it to the whole body (head to feet),
+    // a bit narrower than the drawing so only "real" hits count.
     private void FitBodyToSprites()
     {
         Matrix4x4 toLocal = transform.worldToLocalMatrix;
@@ -48,14 +49,11 @@ public class NPCWalker : MonoBehaviour
         {
             if (sr.sprite == null) continue;
             Matrix4x4 m = toLocal * sr.transform.localToWorldMatrix;
-            Bounds b = sr.sprite.bounds;
-            Vector2[] corners =
+            // The part sprites are whole 32x64 animation cells (mostly transparent): measure the drawn
+            // pixels only, through the sprite's tight mesh, not its rectangle
+            foreach (Vector2 v in sr.sprite.vertices)
             {
-                m.MultiplyPoint3x4(new Vector3(b.min.x, b.min.y)), m.MultiplyPoint3x4(new Vector3(b.max.x, b.max.y)),
-                m.MultiplyPoint3x4(new Vector3(b.min.x, b.max.y)), m.MultiplyPoint3x4(new Vector3(b.max.x, b.min.y))
-            };
-            foreach (Vector2 c in corners)
-            {
+                Vector2 c = m.MultiplyPoint3x4(v);
                 if (!any) { min = max = c; any = true; }
                 min = Vector2.Min(min, c);
                 max = Vector2.Max(max, c);
@@ -74,7 +72,7 @@ public class NPCWalker : MonoBehaviour
         }
     }
 
-    // Rectángulo del cuerpo en el mundo (no depende de la animación de aparecer/desaparecer)
+    // Body rectangle in world space (independent of the pop in/out animation)
     public Rect BodyRect
     {
         get
@@ -94,22 +92,51 @@ public class NPCWalker : MonoBehaviour
 
     void Update()
     {
-        if (!IsDead && !IsGone && CanMove && !isStopped)
+        if (!IsDead && !IsGone && CanMove && !isStopped && !BlockedByOneAhead())
         {
             transform.Translate(WalkDirection * moveSpeed * Time.deltaTime, Space.World);
         }
+    }
+
+    // ---- Personal space ----
+    // Walkers don't overlap: if the one in front (same row, same direction or standing still) is too
+    // close, this one waits behind it, like a queue. People walking the other way pass each other.
+
+    private static readonly System.Collections.Generic.List<NPCWalker> all = new System.Collections.Generic.List<NPCWalker>();
+
+    [Tooltip("Minimum distance to the monito in front before this one waits (world units)")]
+    public float personalSpace = 0.42f;
+    private const float SameRowTolerance = 0.12f;
+
+    void OnEnable() => all.Add(this);
+    void OnDisable() => all.Remove(this);
+
+    private bool BlockedByOneAhead()
+    {
+        Vector3 me = transform.position;
+        foreach (NPCWalker other in all)
+        {
+            if (other == this || other.IsDead || other.IsGone || other.transform.parent != transform.parent) continue;
+            Vector3 d = other.transform.position - me;
+            if (Mathf.Abs(d.y) > SameRowTolerance) continue;
+            float ahead = Vector3.Dot(d, WalkDirection);
+            if (ahead <= 0f || ahead >= personalSpace) continue;
+            bool sameWay = Vector3.Dot(other.WalkDirection, WalkDirection) > 0f || !other.IsWalking;
+            if (sameWay) return true;
+        }
+        return false;
     }
 
     public void SetWalkDirection(Vector3 direction)
     {
         WalkDirection = direction.normalized;
 
-        // Voltea el sprite si camina hacia la izquierda
+        // Flip the sprite when walking left
         facing = WalkDirection.x < 0 ? -1f : 1f;
         ApplyScale(1f);
     }
 
-    // Aparece "creciendo" en su lugar
+    // Pops in, growing in place
     public void PopIn(float duration = 0.25f)
     {
         IsGone = false;
@@ -117,7 +144,7 @@ public class NPCWalker : MonoBehaviour
         StartCoroutine(PopRoutine(0f, 1f, duration, false));
     }
 
-    // Desaparece "encogiéndose". Si deactivate es true, se apaga al terminar.
+    // Pops out, shrinking. If deactivate is true, the object is disabled at the end.
     public void PopOut(bool deactivate, float duration = 0.2f)
     {
         if (IsDead || IsPopping) return;
@@ -132,7 +159,7 @@ public class NPCWalker : MonoBehaviour
         {
             t += Time.deltaTime;
             float k = Mathf.Clamp01(t / duration);
-            // easeOutBack al aparecer, lineal al desaparecer
+            // easeOutBack when popping in, linear when popping out
             float eased = to > from ? 1f + 2.70158f * Mathf.Pow(k - 1f, 3) + 1.70158f * Mathf.Pow(k - 1f, 2) : k;
             ApplyScale(Mathf.LerpUnclamped(from, to, eased));
             yield return null;

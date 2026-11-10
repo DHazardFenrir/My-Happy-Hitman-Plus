@@ -1,9 +1,9 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-// Partículas de sangre pixel-art (sprites generados por código, sin ParticleSystem
-// para no depender de materiales de URP). Las gotas salen disparadas, caen
-// y se quedan como manchas en el suelo junto con un charco que crece.
+// Pixel-art blood particles (sprites generated in code, no ParticleSystem so it doesn't
+// depend on URP materials). Drops burst out, fall and stay on the ground as stains,
+// next to a growing puddle.
 public class BloodSplatter : MonoBehaviour
 {
     public static int sortingOrder = 6;
@@ -27,7 +27,7 @@ public class BloodSplatter : MonoBehaviour
     private float groundY;
     private float age;
 
-    // position: centro del cuerpo. feetY: altura de los pies (donde queda el charco)
+    // position: center of the body. feetY: height of the feet (where the puddle goes)
     public static BloodSplatter Spawn(Vector3 position, Transform parent, float feetY)
     {
         GameObject go = new GameObject("Blood");
@@ -66,7 +66,7 @@ public class BloodSplatter : MonoBehaviour
     {
         age += Time.deltaTime;
 
-        // El charco crece rápido y luego se queda
+        // The puddle grows fast and then stays
         float grow = Mathf.Clamp01(age / 0.5f);
         puddle.localScale = new Vector3(Mathf.Lerp(0f, 0.55f, grow), Mathf.Lerp(0f, 0.08f, grow), 1f);
 
@@ -77,7 +77,7 @@ public class BloodSplatter : MonoBehaviour
             d.velocity += Vector3.down * gravity * Time.deltaTime;
             d.t.position += d.velocity * Time.deltaTime;
 
-            // Al tocar el suelo se queda como mancha
+            // When it hits the ground it stays as a stain
             if (d.velocity.y < 0f && d.t.position.y <= d.landY)
             {
                 d.landed = true;
@@ -93,7 +93,7 @@ public class BloodSplatter : MonoBehaviour
         go.transform.SetParent(transform, true);
         go.transform.position = position;
         SpriteRenderer sr = go.AddComponent<SpriteRenderer>();
-        sr.sprite = RuntimeSprites.Pixel();
+        sr.sprite = GameSprites.Pixel();
         sr.color = color;
         sr.sortingOrder = order;
         return go;

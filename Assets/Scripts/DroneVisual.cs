@@ -1,6 +1,6 @@
 using UnityEngine;
 
-// Anima las hélices del dron y le da un pequeño vaivén.
+// Animates the drone propellers and gives it a little bob.
 public class DroneVisual : MonoBehaviour
 {
     public SpriteRenderer body;

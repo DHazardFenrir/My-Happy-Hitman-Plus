@@ -1,8 +1,8 @@
 using UnityEngine;
 
-// Marca un collider (suelo, pared, poste...) contra el que chocan las trampas.
-// Si el carro o el piano chocan con un TrapBlocker sin haber golpeado a un monito, el minijuego se falla.
-// Los stages crean uno automáticamente si el prefab no tiene ninguno.
+// Marks a collider (ground, wall, post...) that traps crash into.
+// If the car or the piano hits a TrapBlocker without hitting a monito, the minigame is failed.
+// Stages create one automatically if the prefab has none.
 public class TrapBlocker : MonoBehaviour
 {
     public static TrapBlocker Create(Transform parent, string name, Vector3 worldPosition, Vector2 size)
