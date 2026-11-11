@@ -14,6 +14,10 @@ public class GameUI : MonoBehaviour
 
     private GameObject menuRoot;
     private GameObject howToPanel;
+    private GameObject[] howToPages;
+    private Image[] howToDots;
+    private TextMeshProUGUI howToFooter, howToDrone;
+    private int howToPage;
     private Action onPlay;
 
     private RectTransform resultCard;      // Dark background covering the whole phone screen
@@ -117,7 +121,7 @@ public class GameUI : MonoBehaviour
 
         Button howTo = CreateButton(menuRoot.transform, "HowTo Button", "HOW TO PLAY", new Color(0.25f, 0.25f, 0.32f));
         AnchorBox(howTo.GetComponent<RectTransform>(), new Vector2(0.15f, 0.28f), new Vector2(0.85f, 0.36f));
-        howTo.onClick.AddListener(() => howToPanel.SetActive(!howToPanel.activeSelf));
+        howTo.onClick.AddListener(OpenHowTo);
 
         Button quit = CreateButton(menuRoot.transform, "Quit Button", "QUIT", new Color(0.25f, 0.25f, 0.32f));
         AnchorBox(quit.GetComponent<RectTransform>(), new Vector2(0.15f, 0.16f), new Vector2(0.85f, 0.24f));
@@ -126,26 +130,144 @@ public class GameUI : MonoBehaviour
         TextMeshProUGUI hint = CreateText(menuRoot.transform, "Hint", "SPACE / CLICK to play", 11, new Color(1f, 1f, 1f, 0.5f));
         FitInside(hint, new Vector2(0.05f, 0.05f), new Vector2(0.95f, 0.1f), 6f, 11f);
 
-        // How-to panel
-        howToPanel = CreatePanel(menuRoot.transform, "HowTo Panel", new Color(0f, 0f, 0f, 0.95f));
-        Stretch(howToPanel.GetComponent<RectTransform>());
-        TextMeshProUGUI howToText = CreateText(howToPanel.transform, "Text",
-            "<b>HOW TO PLAY</b>\n\n" +
-            "Before each minigame a card shows your <color=#ff5555>TARGET</color>: " +
-            "the color of their shirt and pants.\n\n" +
-            "Press <b>SPACE</b> or <b>CLICK</b> at the right moment to spring the trap.\n\n" +
-            "Hit the target: <color=#55ff55>+100</color>.\nMiss: on to the next minigame.\n\n" +
-            "Reach <b>1000</b> points to graduate.\n\n<size=70%>(click to close)</size>",
-            16, Color.white);
-        Stretch(howToText.rectTransform, 10);
-        howToText.enableAutoSizing = true;
-        howToText.fontSizeMin = 6f;
-        howToText.fontSizeMax = 16f;
-        Button closeHowTo = howToPanel.AddComponent<Button>();
-        closeHowTo.onClick.AddListener(() => howToPanel.SetActive(false));
-        howToPanel.SetActive(false);
-
+        BuildHowTo(menuRoot.transform);
         menuRoot.SetActive(false);
+    }
+
+    // ---------------- HOW TO PLAY ----------------
+    // A short training manual, one page at a time: the job, the one button, the score.
+    // SPACE / CLICK turns the page; after the last one it goes back to the menu.
+
+    private static readonly Color ManualYellow = new Color(1f, 0.82f, 0.25f);
+
+    private void BuildHowTo(Transform parent)
+    {
+        howToPanel = CreatePanel(parent, "HowTo Panel", new Color(0.05f, 0.05f, 0.08f, 0.98f));
+        Stretch(howToPanel.GetComponent<RectTransform>());
+        Button next = howToPanel.AddComponent<Button>();
+        next.transition = Selectable.Transition.None;
+        next.navigation = new Navigation { mode = Navigation.Mode.None };
+        next.onClick.AddListener(NextHowToPage);
+
+        TextMeshProUGUI manual = CreateText(howToPanel.transform, "Manual", "DRONE OPERATOR TRAINING MANUAL", 12f, new Color(1f, 1f, 1f, 0.5f));
+        FitInside(manual, new Vector2(0.05f, 0.93f), new Vector2(0.95f, 0.97f), 5f, 12f);
+        manual.enableWordWrapping = false;
+
+        howToPages = new GameObject[3];
+        howToPages[0] = HowToPage(0, "THE JOB",
+            "You train combat drones.\n\n" +
+            "Before every round a card shows the <color=#ff5555>TARGET</color>: the color of their shirt and pants " +
+            "(sometimes a car, or a phone).\n\n<b>Find them. Only them.</b>");
+        howToDrone = CreateText(howToPages[0].transform, "Drone", "", 14f, ManualYellow);
+        FitInside(howToDrone, new Vector2(0.06f, 0.18f), new Vector2(0.94f, 0.24f), 6f, 14f);
+        HowToIcon(howToPages[0], GameSprites.Drone(0), Color.white, 0.5f, 0.24f, "");
+
+        howToPages[1] = HowToPage(1, "ONE BUTTON",
+            "<b>SPACE</b>, <b>CLICK</b> or <b>TAP</b> does everything.\n\n" +
+            "<color=#ffd23f>TAP</color> at the right moment: drop the piano, open the sewer, fire.\n" +
+            "<color=#ffd23f>HOLD & RELEASE</color>: the scan grows while you hold.\n" +
+            "<color=#ffd23f>MASH</color>: break the locks, fill the fingerprint.\n\n" +
+            "<color=#ffd23f>RC CAR</color>: steer with <b>A / D</b> or the arrows.");
+        HowToIcon(howToPages[1], GameSprites.Crosshair(), new Color(1f, 0.35f, 0.35f), 0.2f, 0.16f, "TAP");
+        HowToIcon(howToPages[1], GameSprites.ScanRing(), new Color(0.35f, 0.95f, 1f), 0.5f, 0.16f, "HOLD");
+        HowToIcon(howToPages[1], GameSprites.Fingerprint(), new Color(0.45f, 0.65f, 1f), 0.8f, 0.16f, "MASH");
+
+        howToPages[2] = HowToPage(2, "THE SCORE",
+            "Hit the target: <color=#55ff55>+100</color>.\nMiss: on to the next target.\n" +
+            "Reach <b>1000</b> to certify your drone.\n\n" +
+            "<color=#45d0ff>The AI makes mistakes. Check its work.</color>\n\n" +
+            "Fail too often and you'll need\nto prove it's really you.\n<size=85%>Don't fail too often.</size>");
+        HowToIcon(howToPages[2], GameSprites.Fingerprint(), new Color(1f, 1f, 1f, 0.85f), 0.5f, 0.2f, "");
+
+        // Page dots and what the button does next
+        howToDots = new Image[howToPages.Length];
+        for (int i = 0; i < howToDots.Length; i++)
+        {
+            howToDots[i] = CreatePanel(howToPanel.transform, "Dot " + (i + 1), Color.white).GetComponent<Image>();
+            float x = 0.5f + (i - (howToDots.Length - 1) / 2f) * 0.06f;
+            AnchorBox(howToDots[i].rectTransform, new Vector2(x - 0.012f, 0.1f), new Vector2(x + 0.012f, 0.115f));
+            howToDots[i].raycastTarget = false;
+        }
+        howToFooter = CreateText(howToPanel.transform, "Footer", "", 11f, new Color(1f, 1f, 1f, 0.55f));
+        FitInside(howToFooter, new Vector2(0.05f, 0.04f), new Vector2(0.95f, 0.08f), 5f, 11f);
+        howToFooter.enableWordWrapping = false;
+
+        howToPanel.SetActive(false);
+    }
+
+    // A page: big title under the manual line, a picture area and the text
+    private GameObject HowToPage(int index, string title, string body)
+    {
+        GameObject page = new GameObject("Page " + (index + 1) + " " + title, typeof(RectTransform));
+        page.transform.SetParent(howToPanel.transform, false);
+        Stretch(page.GetComponent<RectTransform>());
+
+        TextMeshProUGUI head = CreateText(page.transform, "Title", title, 30f, new Color(1f, 0.25f, 0.25f));
+        head.fontStyle = FontStyles.Bold;
+        head.enableWordWrapping = false;
+        FitInside(head, new Vector2(0.06f, 0.84f), new Vector2(0.94f, 0.92f), 8f, 30f);
+
+        TextMeshProUGUI text = CreateText(page.transform, "Body", body, 15f, Color.white);
+        FitInside(text, new Vector2(0.07f, 0.26f), new Vector2(0.93f, 0.62f), 6f, 15f);
+        return page;
+    }
+
+    // A picture in the band under the title, with an optional label under it
+    private void HowToIcon(GameObject page, Sprite sprite, Color color, float x, float halfWidth, string label)
+    {
+        bool labeled = label.Length > 0;
+        Image img = CardImage(page.transform, "Icon", sprite, new Vector2(x - halfWidth, labeled ? 0.7f : 0.65f), new Vector2(x + halfWidth, 0.82f));
+        img.color = color;
+        if (!labeled) return;
+        TextMeshProUGUI text = CreateText(page.transform, "Icon Label", label, 13f, ManualYellow);
+        text.fontStyle = FontStyles.Bold;
+        text.enableWordWrapping = false;
+        FitInside(text, new Vector2(x - halfWidth, 0.64f), new Vector2(x + halfWidth, 0.69f), 5f, 13f);
+    }
+
+    private void OpenHowTo()
+    {
+        if (howToPanel.activeSelf) return;
+        howToDrone.text = $"YOUR DRONE: {AssignedDrone.Name}";
+        howToPanel.transform.SetAsLastSibling();
+        SetMenuItemsVisible(false);
+        howToPanel.SetActive(true);
+        ShowHowToPage(0);
+        SoundFX.Play(Sfx.MenuSelect);
+    }
+
+    private void NextHowToPage()
+    {
+        if (!howToPanel.activeSelf) return;
+        if (howToPage + 1 < howToPages.Length) ShowHowToPage(howToPage + 1);
+        else CloseHowTo();
+        SoundFX.Play(Sfx.MenuSelect, 0.6f);
+    }
+
+    private void CloseHowTo()
+    {
+        howToPanel.SetActive(false);
+        SetMenuItemsVisible(true);
+    }
+
+    // The title and buttons showed through the manual's panel: they hide while it's open
+    private void SetMenuItemsVisible(bool visible)
+    {
+        foreach (Transform child in menuRoot.transform)
+            if (child.gameObject != howToPanel) child.gameObject.SetActive(visible);
+    }
+
+    private void ShowHowToPage(int index)
+    {
+        howToPage = index;
+        for (int i = 0; i < howToPages.Length; i++)
+        {
+            howToPages[i].SetActive(i == index);
+            howToDots[i].color = i == index ? ManualYellow : new Color(1f, 1f, 1f, 0.25f);
+        }
+        howToFooter.text = index + 1 < howToPages.Length ? "SPACE / CLICK  >  NEXT" : "SPACE / CLICK  >  BACK TO MENU";
+        // Nothing stays selected, so SPACE never "clicks" a button on top of turning the page
+        if (EventSystem.current != null) EventSystem.current.SetSelectedGameObject(null);
     }
 
     private static void AnchorBox(RectTransform rt, Vector2 min, Vector2 max)
@@ -169,7 +291,7 @@ public class GameUI : MonoBehaviour
     {
         menuRoot.transform.SetAsLastSibling();
         menuRoot.SetActive(true);
-        howToPanel.SetActive(false);
+        CloseHowTo();
     }
 
     public void HideMenu() => menuRoot.SetActive(false);
@@ -185,11 +307,11 @@ public class GameUI : MonoBehaviour
             foreach (RectTransform rt in visibleLayouts) LayoutVisible(rt);
         }
 
-        // Keyboard shortcut on the menu (clicks are handled by the buttons)
-        if (IsMenuVisible && !howToPanel.activeSelf &&
-            (Input.GetKeyDown(KeyCode.Space) || Input.GetKeyDown(KeyCode.Return)))
+        // Keyboard shortcut on the menu (clicks are handled by the buttons): play, or turn the manual's page
+        if (IsMenuVisible && (Input.GetKeyDown(KeyCode.Space) || Input.GetKeyDown(KeyCode.Return)))
         {
-            PressPlay();
+            if (howToPanel.activeSelf) NextHowToPage();
+            else PressPlay();
         }
     }
 
