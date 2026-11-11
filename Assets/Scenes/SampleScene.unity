@@ -450,7 +450,11 @@ MonoBehaviour:
   - {fileID: 7498280430869214498, guid: 71e06badd2a7f4d20ba9523e77bba73a, type: 3}
   - {fileID: 8121322339157688013, guid: 1d04c71db2b94418d90536d021adec85, type: 3}
   - {fileID: 7546249915196372978, guid: 1f848031ed7d54b168a9007992b6abed, type: 3}
-  targetScore: 1000
+  - {fileID: 413493500641818031, guid: 1d8deba3b339f4bb0ab1a8cb39edba49, type: 3}
+  - {fileID: 5294296150472816926, guid: 57e699bcab5884da08c9a2140dcd103a, type: 3}
+  - {fileID: 3625920302217247983, guid: 1297b0becb852479c8014af830fbe248, type: 3}
+  - {fileID: 8872866404524839473, guid: f8467e64adb4d48bca02a62e1bfa0dce, type: 3}
+  targetScore: 1500
   pointsPerWin: 100
   objectiveCardTime: 2
   resultCardTime: 1.2
@@ -460,13 +464,18 @@ MonoBehaviour:
   adFirstDuration: 2
   adExtraSeconds: 2
   irlDeathAfterFails: 5
+  fingerprintTaps: 14
+  fingerprintSeconds: 3.5
   happyMusic: {fileID: 8300000, guid: 565a9ddbe213d478a9edb9986ee56102, type: 3}
   terrorMusic: {fileID: 8300000, guid: 5c2fc218f3055407586b1e9281d1c305, type: 3}
   musicVolume: 1
   musicBlend: 0
   terrorStartScore: 0
   terrorFullScore: 1000
+  musicStepScore: 200
   musicFadeSeconds: 2.5
+  musicReturnSeconds: 10
+  terrorMusicSpeed: 0.9
   endingBackdrop: {fileID: 0}
 --- !u!4 &364674730
 Transform:

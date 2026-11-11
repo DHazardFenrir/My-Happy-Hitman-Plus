@@ -52,6 +52,7 @@ public class GameUI : MonoBehaviour
         BuildDroneCard(overlayParent);
         BuildLoadingCard(overlayParent);
         BuildResultCard(overlayParent);
+        BuildFingerprintCard(overlayParent);
         BuildAd(overlayParent);
         BuildMenu(overlayParent);
     }
@@ -369,6 +370,110 @@ public class GameUI : MonoBehaviour
         }
 
         loadingCard.gameObject.SetActive(false);
+    }
+
+    // ---------------- FINGERPRINT (LAST CHANCE) ----------------
+    // Before the "real life" death, a banking-app style re-authentication: tap again and again to
+    // fill the fingerprint before time runs out. Once per drone (the GameManager decides when).
+
+    private RectTransform fingerCard;
+    private Image fingerFill, fingerTimer;
+    private TextMeshProUGUI fingerTitle, fingerStatus, fingerFine;
+
+    public bool FingerprintPassed { get; private set; }
+
+    private void BuildFingerprintCard(Transform parent)
+    {
+        GameObject card = CreatePanel(parent, "Fingerprint Card (runtime)", new Color(0.96f, 0.97f, 0.98f, 1f));
+        fingerCard = card.GetComponent<RectTransform>();
+        MatchVisibleScreen(fingerCard);
+        Color ink = new Color(0.15f, 0.17f, 0.22f);
+
+        fingerTitle = CreateText(card.transform, "Title", "OPERATOR RE-AUTHENTICATION", 24f, ink);
+        fingerTitle.fontStyle = FontStyles.Bold;
+        fingerTitle.enableWordWrapping = false;
+        fingerTitle.enableAutoSizing = true;
+        fingerTitle.fontSizeMin = 8f;
+        fingerTitle.fontSizeMax = 24f;
+        AnchorBox(fingerTitle.rectTransform, new Vector2(0.08f, 0.8f), new Vector2(0.92f, 0.87f));
+        TextMeshProUGUI sub = CreateText(card.transform, "Subtitle", "Too many failed jobs.\nConfirm your identity to continue.", 15f, new Color(0.4f, 0.42f, 0.47f));
+        AnchorBox(sub.rectTransform, new Vector2(0.08f, 0.7f), new Vector2(0.92f, 0.79f));
+
+        // The print: gray ridges, and the same ridges in blue filling up from the bottom
+        Image back = CardImage(card.transform, "Fingerprint", GameSprites.Fingerprint(), new Vector2(0.3f, 0.36f), new Vector2(0.7f, 0.66f));
+        back.color = new Color(0.78f, 0.8f, 0.84f);
+        fingerFill = CardImage(card.transform, "Fingerprint Fill", GameSprites.Fingerprint(), new Vector2(0.3f, 0.36f), new Vector2(0.7f, 0.66f));
+        fingerFill.type = Image.Type.Filled;
+        fingerFill.fillMethod = Image.FillMethod.Vertical;
+        fingerFill.fillOrigin = (int)Image.OriginVertical.Bottom;
+
+        fingerStatus = CreateText(card.transform, "Status", "TAP THE SENSOR", 20f, ink);
+        fingerStatus.fontStyle = FontStyles.Bold;
+        fingerStatus.enableWordWrapping = false;
+        fingerStatus.enableAutoSizing = true;
+        fingerStatus.fontSizeMin = 8f;
+        fingerStatus.fontSizeMax = 20f;
+        AnchorBox(fingerStatus.rectTransform, new Vector2(0.08f, 0.27f), new Vector2(0.92f, 0.33f));
+
+        // Time left: a thin bar that shrinks
+        GameObject track = CreatePanel(card.transform, "Timer Track", new Color(0.86f, 0.87f, 0.9f));
+        AnchorBox(track.GetComponent<RectTransform>(), new Vector2(0.15f, 0.22f), new Vector2(0.85f, 0.235f));
+        fingerTimer = CreatePanel(track.transform, "Timer", new Color(0.9f, 0.25f, 0.25f)).GetComponent<Image>();
+        AnchorBox(fingerTimer.rectTransform, Vector2.zero, Vector2.one);
+
+        fingerFine = CreateText(card.transform, "Fine Print", "", 11f, new Color(0.5f, 0.52f, 0.56f));
+        AnchorBox(fingerFine.rectTransform, new Vector2(0.08f, 0.12f), new Vector2(0.92f, 0.18f));
+
+        card.SetActive(false);
+    }
+
+    // Tap again and again (each tap fills a bit, it drains when you stop). Sets FingerprintPassed.
+    public IEnumerator ShowFingerprintCard(int tapsNeeded, float duration)
+    {
+        FingerprintPassed = false;
+        if (fingerCard == null) yield break;
+        Color blue = new Color(0.2f, 0.5f, 0.95f);
+        fingerFill.color = blue;
+        fingerFill.fillAmount = 0f;
+        fingerStatus.text = "TAP THE SENSOR";
+        fingerStatus.color = new Color(0.15f, 0.17f, 0.22f);
+        fingerFine.text = "";
+        fingerCard.SetAsLastSibling();
+        fingerCard.gameObject.SetActive(true);
+        SoundFX.Play(Sfx.TargetAlert);
+
+        float progress = 0f, t = 0f, nextBotTap = 0.6f;
+        bool botFast = UnityEngine.Random.value >= Autopilot.MissChance; // the bot sometimes taps too slowly
+        while (t < duration && progress < 1f)
+        {
+            t += Time.deltaTime;
+            if (Autopilot.Enabled && t >= nextBotTap)
+            {
+                Autopilot.Press();
+                nextBotTap = t + (botFast ? 0.13f : 0.4f);
+            }
+            if (SingleInput.ActionPressed)
+            {
+                progress += 1f / tapsNeeded;
+                SoundFX.Play(Sfx.FingerTap);
+                fingerFill.rectTransform.localScale = Vector3.one * 1.04f;
+            }
+            progress = Mathf.Max(0f, progress - 0.12f * Time.deltaTime); // stop tapping and it drains
+            fingerFill.fillAmount = progress;
+            fingerFill.rectTransform.localScale = Vector3.Lerp(fingerFill.rectTransform.localScale, Vector3.one, 12f * Time.deltaTime);
+            fingerTimer.rectTransform.anchorMax = new Vector2(1f - t / duration, 1f);
+            yield return null;
+        }
+
+        FingerprintPassed = progress >= 1f;
+        fingerFill.fillAmount = 1f;
+        fingerFill.color = FingerprintPassed ? new Color(0.15f, 0.7f, 0.35f) : new Color(0.9f, 0.2f, 0.2f);
+        fingerStatus.text = FingerprintPassed ? "IDENTITY CONFIRMED" : "AUTHENTICATION FAILED";
+        fingerStatus.color = fingerFill.color;
+        if (FingerprintPassed) fingerFine.text = "Biometric data saved for training.";
+        SoundFX.Play(FingerprintPassed ? Sfx.FingerOk : Sfx.Fail);
+        yield return new WaitForSeconds(1.3f);
+        fingerCard.gameObject.SetActive(false);
     }
 
     // ---------------- ASSIGNED DRONE CARD ----------------

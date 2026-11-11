@@ -58,6 +58,16 @@ public static class GameSprites
     public static Sprite Dog(int frame) => Get("dog" + frame); // frame 0/1 = running stride, faces right
     public static Sprite FenceSlats() => Get("fence_slats");   // tiling
 
+    // Signal scan minigame
+    public static Sprite ScanRing() => Get("scanring");       // 2 units wide: scale = radius
+    public static Sprite PhoneSignal() => Get("phonesignal"); // a device above each person
+
+    // Face layers of the human check minigame (face_round, eyes_a, horns, diff_glasses... see HumanCheckStage)
+    public static Sprite FacePart(string key) => Get(key);
+
+    // Fingerprint of the last-chance re-authentication (filled bottom-up in the UI)
+    public static Sprite Fingerprint() => Get("fingerprint");
+
     // Blood splatter over the screen when you die "in real life" (4 variants, pick one at random)
     public const int BloodSplashCount = 4;
     public static Sprite BloodSplash(int variant) => Get("bloodsplash" + variant);

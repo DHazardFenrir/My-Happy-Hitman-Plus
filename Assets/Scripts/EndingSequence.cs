@@ -39,8 +39,8 @@ public class EndingSequence : MonoBehaviour
     private bool running;
 
     [Header("Credits")]
-    public string[] creditRoles = { "DIRECTOR & PROGRAMMER", "ARTIST" };
-    public string[] creditNames = { "Gold", "Luis Ortega" };
+    public string[] creditRoles = { "DIRECTOR & PROGRAMMER", "ARTIST", "COMPOSER & MUSIC" };
+    public string[] creditNames = { "Gold", "Luis Ortega", "Carlos Rodriguez" };
 
     private CinematicOverlay overlay;
 

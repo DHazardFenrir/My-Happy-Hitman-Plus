@@ -13,7 +13,8 @@ public enum Sfx
     Success, Fail, MenuSelect,
     CarHorn, GlassBreak, Explosion,
     TargetAlert,
-    DogBark, DogBite, GateOpen
+    DogBark, DogBite, GateOpen,
+    ScanPing, ScanLock, FingerTap, FingerOk
 }
 
 // Retro sound effects generated in code, with the same synth bfxr/sfxr use
@@ -145,6 +146,18 @@ public static class RuntimeSounds
                     Synth(new Params { wave = Wave.Square, baseFreq = 0.55f, arpMod = 0.3f, arpSpeed = 0.55f, duty = 0.5f, sustain = 0.12f, decay = 0.05f, volume = 0.45f }, 43),
                     Delay(Synth(new Params { wave = Wave.Saw, baseFreq = 0.18f, freqRamp = 0.25f, sustain = 0.3f, decay = 0.1f, lpfFreq = 0.5f, volume = 0.5f }, 44), 0.15f),
                     Delay(Synth(new Params { wave = Wave.Noise, baseFreq = 0.25f, sustain = 0.02f, punch = 0.6f, decay = 0.15f, volume = 0.6f }, 45), 0.5f));
+            case Sfx.ScanPing: // Sonar blip while the scan ring grows
+                return Synth(new Params { wave = Wave.Sine, baseFreq = 0.62f, freqRamp = -0.08f, sustain = 0.03f, decay = 0.18f, volume = 0.45f }, 46);
+            case Sfx.ScanLock: // "Device found": two quick rising beeps
+                return Mix(
+                    Synth(new Params { wave = Wave.Square, baseFreq = 0.5f, duty = 0.5f, sustain = 0.05f, decay = 0.03f, volume = 0.4f }, 47),
+                    Delay(Synth(new Params { wave = Wave.Square, baseFreq = 0.7f, duty = 0.5f, sustain = 0.1f, decay = 0.08f, volume = 0.45f }, 48), 0.08f));
+            case Sfx.FingerTap: // Soft click of the fingerprint sensor
+                return Synth(new Params { wave = Wave.Noise, baseFreq = 0.6f, sustain = 0.01f, punch = 0.4f, decay = 0.04f, hpfFreq = 0.3f, volume = 0.35f }, 49);
+            case Sfx.FingerOk: // Banking-app chime: identity confirmed
+                return Mix(
+                    Synth(new Params { wave = Wave.Sine, baseFreq = 0.45f, sustain = 0.08f, decay = 0.25f, volume = 0.5f }, 50),
+                    Delay(Synth(new Params { wave = Wave.Sine, baseFreq = 0.6f, sustain = 0.12f, decay = 0.4f, volume = 0.5f }, 51), 0.1f));
             case Sfx.MenuSelect:
                 return Synth(new Params { wave = Wave.Square, baseFreq = 0.5f, freqRamp = 0.2f, duty = 0.5f, sustain = 0.04f, decay = 0.12f, volume = 0.5f }, 26);
         }

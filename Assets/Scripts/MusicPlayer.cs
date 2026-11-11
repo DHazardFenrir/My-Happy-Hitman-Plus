@@ -15,10 +15,15 @@ public class MusicPlayer : MonoBehaviour
     private float happyTarget = 1f, terrorTarget;
     private float masterVolume = 0.6f;
     private float fadeSpeed = 0.5f;
+    private float currentFadeSpeed = 0.5f; // this fade's speed (a slower one after the credits)
     private BlendMode mode;
     private int startScore, fullScore;
 
-    public void Setup(AudioClip happyClip, AudioClip terrorClip, float volume, BlendMode blend, int terrorStartScore, int terrorFullScore, float fadeSeconds)
+    // The mix changes in steps of this many points (200 = 100/0, 80/20, 60/40... every two wins). 0 = smooth
+    public int StepScore { get; set; }
+
+    // terrorSpeed: the terror track plays at this fixed speed (below 1 = slower and lower, heavier)
+    public void Setup(AudioClip happyClip, AudioClip terrorClip, float volume, BlendMode blend, int terrorStartScore, int terrorFullScore, float fadeSeconds, float terrorSpeed = 1f)
     {
         Instance = this;
         masterVolume = volume;
@@ -29,6 +34,7 @@ public class MusicPlayer : MonoBehaviour
 
         happy = NewSource(happyClip);
         terror = NewSource(terrorClip);
+        terror.pitch = terrorSpeed; // set once: it never changes during the game
         SetIntensity(0f, instant: true);
         if (happy.clip != null) happy.Play();
         if (terror.clip != null) terror.Play();
@@ -48,12 +54,20 @@ public class MusicPlayer : MonoBehaviour
     public void OnScoreChanged(int score)
     {
         float k = Mathf.InverseLerp(startScore, fullScore, score);
+        if (StepScore > 0)
+        {
+            int steps = Mathf.Max(1, Mathf.RoundToInt((fullScore - startScore) / (float)StepScore));
+            k = Mathf.Floor(k * steps + 0.001f) / steps;
+        }
         SetIntensity(k, instant: false);
     }
 
-    // 0 = all happy, 1 = all terror
-    public void SetIntensity(float k, bool instant)
+    // 0 = all happy, 1 = all terror. fadeSeconds overrides how long this change takes
+    public void SetIntensity(float k, bool instant, float fadeSeconds = 0f)
     {
+        // Same target (e.g. the menu resets the score to 0 during the slow return): keep that fade going
+        if (!instant && fadeSeconds <= 0f && Mathf.Approximately(k, terrorTarget)) return;
+        currentFadeSpeed = fadeSeconds > 0f ? 1f / fadeSeconds : fadeSpeed;
         terrorTarget = k;
         happyTarget = mode == BlendMode.Crossfade ? 1f - k : 1f;
         if (instant && happy != null)
@@ -69,7 +83,7 @@ public class MusicPlayer : MonoBehaviour
     void Update()
     {
         if (happy == null) return;
-        float step = fadeSpeed * Time.deltaTime;
+        float step = currentFadeSpeed * Time.deltaTime;
         happy.volume = Mathf.MoveTowards(happy.volume, happyTarget * masterVolume, step);
         terror.volume = Mathf.MoveTowards(terror.volume, terrorTarget * masterVolume, step);
     }

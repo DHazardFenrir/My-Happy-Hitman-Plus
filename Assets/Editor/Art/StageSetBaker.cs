@@ -4,7 +4,7 @@ using UnityEditor.SceneManagement;
 using UnityEngine;
 using static StageBuilder;
 
-// Builds the sets of the RC car and guard dogs minigames in code and saves them as prefabs
+// Builds the sets of the RC car, guard dogs, captcha, signal scan, safety override and human check minigames in code and saves them as prefabs
 // ("Bake" only creates missing prefabs; "Rebuild" redoes one in place, losing hand edits to it).
 // The elevator and drone prefabs were made the same way once and are now edited by hand only.
 // Also registers all the stage prefabs in the GameManager's minigame list.
@@ -16,6 +16,14 @@ public static class StageSetBaker
     public const string NightPath = PrefabDir + "/---- SIXTH MINI GAME (drone night) ----.prefab";
     public const string RcCarPath = PrefabDir + "/---- SEVENTH MINI GAME (rc car) ----.prefab";
     public const string DogsPath = PrefabDir + "/---- EIGHTH MINI GAME (guard dogs) ----.prefab";
+    public const string CaptchaPath = PrefabDir + "/---- NINTH MINI GAME (captcha) ----.prefab";
+    private const string CaptchaBackdropPath = "Assets/Art/StageBackdrops/Captcha_back.png";
+    public const string SignalScanPath = PrefabDir + "/---- TENTH MINI GAME (signal scan) ----.prefab";
+    private const string SignalScanBackdropPath = "Assets/Art/StageBackdrops/SignalScan_back.png";
+    public const string OverridePath = PrefabDir + "/---- ELEVENTH MINI GAME (safety override) ----.prefab";
+    private const string OverrideBackdropPath = "Assets/Art/StageBackdrops/SafetyOverride_back.png";
+    public const string HumanCheckPath = PrefabDir + "/---- TWELFTH MINI GAME (human check) ----.prefab";
+    private const string HumanCheckBackdropPath = "Assets/Art/StageBackdrops/HumanCheck_back.png";
     private const string CarSheetPath = "Assets/bk_cars1.a.png";
     private const string MonitoPath = PrefabDir + "/Monito.prefab";
 
@@ -27,6 +35,10 @@ public static class StageSetBaker
     {
         Bake(RcCarPath, 120f, BuildRcCarRoad);
         Bake(DogsPath, 140f, BuildDogStreet);
+        Bake(CaptchaPath, 160f, BuildCaptchaStreet);
+        Bake(SignalScanPath, 180f, BuildSignalScan);
+        Bake(OverridePath, 200f, BuildSafetyOverride);
+        Bake(HumanCheckPath, 220f, BuildHumanCheck);
     }
 
     // Rebuild a stage prefab IN PLACE with its current Build method: keeps the file, its root and the stage
@@ -34,6 +46,18 @@ public static class StageSetBaker
     // and builds the set again. Hand edits to that prefab's children are lost.
     [MenuItem("Tools/Agent TR8N1/Rebuild guard dogs stage")]
     public static void RebuildDogStage() => RebuildInPlace(DogsPath, BuildDogStreet);
+
+    [MenuItem("Tools/Agent TR8N1/Rebuild human check stage")]
+    public static void RebuildHumanCheckStage() => RebuildInPlace(HumanCheckPath, BuildHumanCheck);
+
+    [MenuItem("Tools/Agent TR8N1/Rebuild safety override stage")]
+    public static void RebuildOverrideStage() => RebuildInPlace(OverridePath, BuildSafetyOverride);
+
+    [MenuItem("Tools/Agent TR8N1/Rebuild signal scan stage")]
+    public static void RebuildSignalScanStage() => RebuildInPlace(SignalScanPath, BuildSignalScan);
+
+    [MenuItem("Tools/Agent TR8N1/Rebuild captcha stage")]
+    public static void RebuildCaptchaStage() => RebuildInPlace(CaptchaPath, BuildCaptchaStreet);
 
     [MenuItem("Tools/Agent TR8N1/Rebuild RC car stage")]
     public static void RebuildRcCarStage() => RebuildInPlace(RcCarPath, BuildRcCarRoad);
@@ -59,7 +83,7 @@ public static class StageSetBaker
 
         SerializedObject so = new SerializedObject(manager);
         SerializedProperty list = so.FindProperty("minigamePrefabs");
-        foreach (string path in new[] { ElevatorPath, PlazaPath, NightPath, RcCarPath, DogsPath })
+        foreach (string path in new[] { ElevatorPath, PlazaPath, NightPath, RcCarPath, DogsPath, CaptchaPath, SignalScanPath, OverridePath, HumanCheckPath })
         {
             WarioStage stage = AssetDatabase.LoadAssetAtPath<WarioStage>(path);
             if (stage == null) { Debug.LogError("Missing " + path); continue; }
@@ -286,6 +310,101 @@ public static class StageSetBaker
         SerializedProperty list = so.FindProperty("dogs");
         list.arraySize = dogs.Length;
         for (int i = 0; i < dogs.Length; i++) list.GetArrayElementAtIndex(i).objectReferenceValue = dogs[i];
+        so.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    // ---------------- Captcha (street picture) ----------------
+
+    // Same framing as the drone plaza (camera at the root): only the picture behind the grid shows,
+    // CaptchaStage draws the widget and places the people over it. Repaint Captcha_back.png freely.
+    private static void BuildCaptchaStreet(GameObject root)
+    {
+        CaptchaStage stage = root.GetComponent<CaptchaStage>();
+        if (stage == null) stage = root.AddComponent<CaptchaStage>();
+        Transform transform = root.transform;
+
+        Sprite backdrop = AssetDatabase.LoadAssetAtPath<Sprite>(CaptchaBackdropPath);
+        SpriteRenderer back = Child(transform, "Street Picture", new Vector3(0.0146484375f, -3.2998047f, 0f)).gameObject.AddComponent<SpriteRenderer>();
+        back.sprite = backdrop;
+        back.sortingOrder = -12;
+
+        Transform spawn = Child(transform, "Spawn Point", new Vector3(0f, -4f, 0f));
+        Transform focus = Child(transform, "Focus Camera", Vector3.zero);
+        Transform ground = Child(transform, "Ground Line (feet go below)", new Vector3(0f, -3.45f, 0f)); // top of the plaza's sidewalk
+        Assign(stage, ("spawnPoint", spawn), ("cameraFocusPoint", focus), ("npcPrefab", Monito), ("groundLine", ground));
+    }
+
+    // ---------------- Signal scan (night street, drone camera) ----------------
+
+    // Same framing as the drone stages. The picture is a copy of the night plaza (repaint
+    // SignalScan_back.png freely); SignalScanStage tints it blue and adds the devices and the ring.
+    private static void BuildSignalScan(GameObject root)
+    {
+        SignalScanStage stage = root.GetComponent<SignalScanStage>();
+        if (stage == null) stage = root.AddComponent<SignalScanStage>();
+        Transform transform = root.transform;
+
+        SpriteRenderer back = Child(transform, "Street Picture", new Vector3(0.13964844f, -3.2998047f, 0f)).gameObject.AddComponent<SpriteRenderer>();
+        back.sprite = AssetDatabase.LoadAssetAtPath<Sprite>(SignalScanBackdropPath);
+        back.sortingOrder = -12;
+
+        Transform spawn = Child(transform, "Spawn Point", Vector3.zero);
+        Transform focus = Child(transform, "Focus Camera", Vector3.zero);
+        Transform front = Child(transform, "Crowd Front Row (feet)", new Vector3(0f, -4.13336f, 0f));
+        Assign(stage, ("spawnPoint", spawn), ("cameraFocusPoint", focus), ("npcPrefab", Monito), ("crowdFrontRow", front));
+        SerializedObject so = new SerializedObject(stage);
+        so.FindProperty("crowdSize").intValue = 6;   // less packed than the shooting stages, so the scan has room
+        so.FindProperty("passerbySpeed").vector2Value = new Vector2(0.45f, 0.75f);
+        so.FindProperty("swayAmount").floatValue = 0.06f;
+        so.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    // ---------------- Safety override (day street, drone camera) ----------------
+
+    // Same framing as the drone stages. The picture is a copy of the day plaza (repaint
+    // SafetyOverride_back.png freely); SafetyOverrideStage adds the metro entrance and the lock panel.
+    private static void BuildSafetyOverride(GameObject root)
+    {
+        SafetyOverrideStage stage = root.GetComponent<SafetyOverrideStage>();
+        if (stage == null) stage = root.AddComponent<SafetyOverrideStage>();
+        Transform transform = root.transform;
+
+        SpriteRenderer back = Child(transform, "Street Picture", new Vector3(0.0146484375f, -3.2998047f, 0f)).gameObject.AddComponent<SpriteRenderer>();
+        back.sprite = AssetDatabase.LoadAssetAtPath<Sprite>(OverrideBackdropPath);
+        back.sortingOrder = -12;
+
+        Transform spawn = Child(transform, "Spawn Point", Vector3.zero);
+        Transform focus = Child(transform, "Focus Camera", Vector3.zero);
+        Transform front = Child(transform, "Crowd Front Row (feet)", new Vector3(0f, -4.13336f, 0f));
+        Assign(stage, ("spawnPoint", spawn), ("cameraFocusPoint", focus), ("npcPrefab", Monito), ("crowdFrontRow", front));
+        SerializedObject so = new SerializedObject(stage);
+        so.FindProperty("crowdSize").intValue = 8;
+        so.FindProperty("swayAmount").floatValue = 0.04f;
+        so.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    // ---------------- Human check (dossier over the day street, drone camera) ----------------
+
+    // Same framing as the drone stages; HumanCheckStage covers it with the dossier and opens it at
+    // the end. The street is a copy of the day plaza (repaint HumanCheck_back.png freely).
+    private static void BuildHumanCheck(GameObject root)
+    {
+        HumanCheckStage stage = root.GetComponent<HumanCheckStage>();
+        if (stage == null) stage = root.AddComponent<HumanCheckStage>();
+        Transform transform = root.transform;
+
+        SpriteRenderer back = Child(transform, "Street Picture", new Vector3(0.0146484375f, -3.2998047f, 0f)).gameObject.AddComponent<SpriteRenderer>();
+        back.sprite = AssetDatabase.LoadAssetAtPath<Sprite>(HumanCheckBackdropPath);
+        back.sortingOrder = -12;
+
+        Transform spawn = Child(transform, "Spawn Point", Vector3.zero);
+        Transform focus = Child(transform, "Focus Camera", Vector3.zero);
+        Transform front = Child(transform, "Crowd Front Row (feet)", new Vector3(0f, -4.13336f, 0f));
+        Assign(stage, ("spawnPoint", spawn), ("cameraFocusPoint", focus), ("npcPrefab", Monito), ("crowdFrontRow", front));
+        SerializedObject so = new SerializedObject(stage);
+        so.FindProperty("crowdSize").intValue = 8;
+        so.FindProperty("swayAmount").floatValue = 0.04f;
+        so.FindProperty("timeLimit").floatValue = 20f; // three faces and the strike
         so.ApplyModifiedPropertiesWithoutUndo();
     }
 

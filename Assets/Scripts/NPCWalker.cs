@@ -127,6 +127,13 @@ public class NPCWalker : MonoBehaviour
         return false;
     }
 
+    // Makes the monito bigger or smaller (e.g. a close-up camera shot); BodyRect follows
+    public void ScaleBy(float factor)
+    {
+        baseScale *= factor;
+        ApplyScale(1f);
+    }
+
     public void SetWalkDirection(Vector3 direction)
     {
         WalkDirection = direction.normalized;

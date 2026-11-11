@@ -57,6 +57,8 @@ public abstract class DroneCamStage : WarioStage
     protected virtual Color FilterTint => new Color(0.55f, 0.95f, 1f, 0.07f);
     protected abstract string CamLabel { get; }
     protected virtual void BuildOverlay() { }
+    // Stages that don't aim and shoot by hand (the signal scan) go without the crosshair
+    protected virtual bool HasCrosshair => true;
     protected virtual void OnAimMoved(Vector2 localAim) { }
 
     public override void SetupStage(NPCAppearance.ClothingPart target)
@@ -74,8 +76,11 @@ public abstract class DroneCamStage : WarioStage
         BuildHud(target);
         BuildOverlay();
 
-        crosshairSprite = SpriteAt(transform, "Crosshair", GameSprites.Crosshair(), 0f, 0f, 0.45f, HudColor, 35);
-        crosshair = crosshairSprite.transform;
+        if (HasCrosshair)
+        {
+            crosshairSprite = SpriteAt(transform, "Crosshair", GameSprites.Crosshair(), 0f, 0f, 0.45f, HudColor, 35);
+            crosshair = crosshairSprite.transform;
+        }
         aim = visible.center;
         lastMouse = Input.mousePosition;
     }
@@ -85,12 +90,7 @@ public abstract class DroneCamStage : WarioStage
         if (fired) return;
 
         KeepWanderersInside();
-        if (recDot != null) recDot.enabled = Mathf.Repeat(Time.time, 1f) < 0.6f;
-        if (interference != null)
-        {
-            float y = Mathf.Lerp(fullView.yMin - 0.3f, fullView.yMax + 0.3f, Mathf.Repeat(Time.time * 0.35f, 1f));
-            interference.localPosition = new Vector3(fullView.center.x, y, 0f);
-        }
+        AnimateHud();
 
         if (Autopilot.Enabled) AutopilotAim();
         else PlayerAim();
@@ -107,6 +107,17 @@ public abstract class DroneCamStage : WarioStage
         OnAimMoved(point);
 
         if (SingleInput.ActionPressed) StartCoroutine(Fire(point));
+    }
+
+    // The REC dot blinks and the interference band rolls up the screen
+    protected void AnimateHud()
+    {
+        if (recDot != null) recDot.enabled = Mathf.Repeat(Time.time, 1f) < 0.6f;
+        if (interference != null)
+        {
+            float y = Mathf.Lerp(fullView.yMin - 0.3f, fullView.yMax + 0.3f, Mathf.Repeat(Time.time * 0.35f, 1f));
+            interference.localPosition = new Vector3(fullView.center.x, y, 0f);
+        }
     }
 
     // ---------------- Aiming ----------------
@@ -166,22 +177,7 @@ public abstract class DroneCamStage : WarioStage
     // The visible part of the phone screen, in world units on the stage plane
     private Rect VisibleWorldRect()
     {
-        Camera cam = RenderCameraFollow.Instance != null ? RenderCameraFollow.Instance.Cam : null;
-        RectTransform screen = GameManager.Instance != null ? GameManager.Instance.gameScreen : null;
-        if (cam == null || screen == null) return view;
-
-        Vector3[] s = new Vector3[4], m = new Vector3[4];
-        screen.GetWorldCorners(s);
-        ((RectTransform)screen.GetComponentInParent<Canvas>().rootCanvas.transform).GetWorldCorners(m);
-        float u0 = Mathf.InverseLerp(s[0].x, s[2].x, Mathf.Max(s[0].x, m[0].x));
-        float u1 = Mathf.InverseLerp(s[0].x, s[2].x, Mathf.Min(s[2].x, m[2].x));
-        float v0 = Mathf.InverseLerp(s[0].y, s[2].y, Mathf.Max(s[0].y, m[0].y));
-        float v1 = Mathf.InverseLerp(s[0].y, s[2].y, Mathf.Min(s[2].y, m[2].y));
-
-        float depth = transform.position.z - cam.transform.position.z;
-        Vector3 a = cam.ViewportToWorldPoint(new Vector3(u0, v0, depth));
-        Vector3 b = cam.ViewportToWorldPoint(new Vector3(u1, v1, depth));
-        return Rect.MinMaxRect(a.x, a.y, b.x, b.y);
+        return RenderCameraFollow.Instance != null ? RenderCameraFollow.Instance.GetPhoneVisibleWorldRect(transform.position.z) : view;
     }
 
     // ---------------- Shooting ----------------
@@ -244,7 +240,7 @@ public abstract class DroneCamStage : WarioStage
     }
 
     // After the shot everybody runs away from it
-    private void Panic(float shotX, NPCWalker victim)
+    protected void Panic(float shotX, NPCWalker victim)
     {
         float worldShotX = shotX + transform.position.x;
         foreach (NPCWalker npc in spawnedNPCs)
@@ -311,7 +307,7 @@ public abstract class DroneCamStage : WarioStage
     }
 
     // The target bounces between the edges, so it's always somewhere on screen
-    private void KeepWanderersInside()
+    protected void KeepWanderersInside()
     {
         foreach (NPCWalker npc in spawnedNPCs)
         {

@@ -686,6 +686,207 @@ public static class SpritePainter
         return tex;
     }
 
+    // ---------------- Signal scan ----------------
+
+    // Thin white ring, 2 units wide (scale = radius), tinted by the SpriteRenderer
+    public static Sprite ScanRing()
+    {
+        if (cache.TryGetValue("scanring", out Sprite cached)) return cached;
+        const int size = 96;
+        Texture2D tex = NewTexture(size, size);
+        for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++)
+            {
+                float d = new Vector2(x - size / 2f + 0.5f, y - size / 2f + 0.5f).magnitude;
+                if (d > 45.5f && d < 47.5f) tex.SetPixel(x, y, Color.white);
+                else if (d > 43f && d <= 45.5f) tex.SetPixel(x, y, new Color(1f, 1f, 1f, 0.25f));
+            }
+        return Save("scanring", tex, 48f);
+    }
+
+    // A phone with wifi arcs above it: each person's device in the signal scan (white, tinted)
+    public static Sprite PhoneSignal()
+    {
+        if (cache.TryGetValue("phonesignal", out Sprite cached)) return cached;
+        Texture2D tex = NewTexture(13, 16);
+        Color w = Color.white, dim = new Color(1f, 1f, 1f, 0.55f);
+        Fill(tex, 4, 0, 8, 7, w);          // phone
+        Fill(tex, 5, 2, 7, 6, Clear);       // screen
+        Fill(tex, 6, 1, 6, 1, Clear);       // button
+        Fill(tex, 5, 9, 7, 9, w);           // small arc
+        Fill(tex, 4, 10, 4, 10, w); Fill(tex, 8, 10, 8, 10, w);
+        Fill(tex, 3, 12, 9, 12, dim);       // middle arc
+        Fill(tex, 2, 11, 2, 11, dim); Fill(tex, 10, 11, 10, 11, dim);
+        Fill(tex, 2, 15, 10, 15, dim);      // big arc
+        Fill(tex, 1, 14, 1, 14, dim); Fill(tex, 11, 14, 11, 14, dim);
+        Fill(tex, 0, 13, 0, 13, dim); Fill(tex, 12, 13, 12, 13, dim);
+        return Save("phonesignal", tex, 100f);
+    }
+
+    // ---------------- Faces (human check minigame) ----------------
+    // 32x32 layers stacked by HumanCheckStage. White parts (skin, hair) are tinted at runtime;
+    // the rest keep their colors. People with a facial difference are drawn like everyone else:
+    // the difference is just one more layer (the AI is the one that gets them wrong).
+
+    private const int F = 32;
+    private static readonly Color FaceInk = new Color(0.13f, 0.10f, 0.12f);
+
+    public static Sprite FaceRound() => FaceLayer("face_round", (x, y) => InHead(x, y, false) ? Color.white : Clear);
+    public static Sprite FaceRoundLine() => FaceLayer("face_round_line", (x, y) => HeadEdge(x, y, false) ? FaceInk : Clear);
+    public static Sprite FacePointy() => FaceLayer("face_pointy", (x, y) => InHead(x, y, true) ? Color.white : Clear);
+    public static Sprite FacePointyLine() => FaceLayer("face_pointy_line", (x, y) => HeadEdge(x, y, true) ? FaceInk : Clear);
+
+    // Eyes at y = 16, x = 12..13 and 19..20
+    public static Sprite EyesA() => FaceLayer("eyes_a", (x, y) => EyePair(x, y, Color.white, FaceInk, false));
+    public static Sprite EyesB() => FaceLayer("eyes_b", (x, y) =>
+        (y == 16 && (x == 12 || x == 20)) ? FaceInk : (y == 18 && (x >= 11 && x <= 13 || x >= 19 && x <= 21)) ? new Color(0.25f, 0.18f, 0.12f) : Clear);
+    public static Sprite EyesSlit() => FaceLayer("eyes_slit", (x, y) => EyePair(x, y, new Color(0.95f, 0.85f, 0.2f), FaceInk, true));
+    public static Sprite EyesThree() => FaceLayer("eyes_three", (x, y) =>
+    {
+        Color c = EyePair(x, y, Color.white, FaceInk, false);
+        if (c.a > 0f) return c;
+        if (y >= 20 && y <= 21 && x >= 15 && x <= 17) return (x == 16) ? FaceInk : Color.white;
+        return Clear;
+    });
+    public static Sprite EyesCyclops() => FaceLayer("eyes_cyclops", (x, y) =>
+    {
+        float d = new Vector2(x - 16f, (y - 16.5f) * 1.3f).magnitude;
+        if (d < 1.3f) return FaceInk;
+        if (d < 2.4f) return new Color(0.85f, 0.2f, 0.2f);
+        if (d < 3.6f) return Color.white;
+        if (d < 4.3f) return FaceInk;
+        return Clear;
+    });
+
+    // Mouths at y = 10
+    public static Sprite MouthA() => FaceLayer("mouth_a", (x, y) => (y == 10 && x >= 14 && x <= 18) || (y == 11 && (x == 13 || x == 19)) ? FaceInk : Clear);
+    public static Sprite MouthB() => FaceLayer("mouth_b", (x, y) =>
+        (y >= 9 && y <= 10 && x >= 15 && x <= 17) ? (y == 9 ? new Color(0.75f, 0.25f, 0.3f) : FaceInk) : Clear);
+    public static Sprite MouthFangs() => FaceLayer("mouth_fangs", (x, y) =>
+        (y == 10 && x >= 13 && x <= 19) ? FaceInk : ((y == 9 || y == 8) && (x == 14 || x == 18)) ? Color.white : Clear);
+
+    // Hair (white, tinted): short, long, bun
+    public static Sprite HairA() => FaceLayer("hair_a", (x, y) => InHead(x, y, false) && y >= 21 && !(y < 23 && x > 13 && x < 19) ? HairShade(x, y) : Clear);
+    public static Sprite HairB() => FaceLayer("hair_b", (x, y) =>
+        (InHead(x, y, false) || Mathf.Abs(x - 15.5f) <= 9f && y >= 8 && y <= 24) && (y >= 21 || x <= 9 || x >= 22) && !(y < 23 && x > 13 && x < 19) ? HairShade(x, y) : Clear);
+    public static Sprite HairC() => FaceLayer("hair_c", (x, y) =>
+        (InHead(x, y, false) && y >= 22) || new Vector2(x - 15.5f, y - 28f).magnitude < 3.2f ? HairShade(x, y) : Clear);
+
+    // Monster extras
+    public static Sprite Horns() => FaceLayer("horns", (x, y) =>
+    {
+        foreach (int side in new[] { -1, 1 })
+        {
+            float bx = 16f + side * 5f, t = (y - 23f) / 8f; // from the forehead up and out
+            if (t < 0f || t > 1f) continue;
+            float cx = bx + side * 3f * t, half = 1.6f * (1f - t);
+            if (Mathf.Abs(x + 0.5f - cx) <= half + 0.2f) return t > 0.75f ? new Color(0.6f, 0.55f, 0.45f) : new Color(0.92f, 0.88f, 0.75f);
+        }
+        return Clear;
+    });
+    public static Sprite Antennae() => FaceLayer("antennae", (x, y) =>
+    {
+        if (new Vector2(x - 10.5f, y - 30f).magnitude < 1.5f || new Vector2(x - 21.5f, y - 30f).magnitude < 1.5f) return new Color(0.55f, 0.95f, 0.35f);
+        if (y >= 24 && y <= 28 && (x == 12 + (28 - y) / 2 || x == 20 - (28 - y) / 2)) return FaceInk;
+        return Clear;
+    });
+    public static Sprite Scales() => FaceLayer("scales", (x, y) =>
+        InHead(x, y, false) && y < 22 && (x + y * 2) % 5 == 0 && y % 2 == 0 ? new Color(0.1f, 0.3f, 0.15f, 0.45f) : Clear);
+
+    // Facial differences (human)
+    public static Sprite DiffEyepatch() => FaceLayer("diff_eyepatch", (x, y) =>
+        (x >= 11 && x <= 14 && y >= 15 && y <= 17) || (y == 18 + (x - 8) / 6 && x >= 8 && x <= 24) ? new Color(0.08f, 0.08f, 0.1f) : Clear);
+    public static Sprite DiffScar() => FaceLayer("diff_scar", (x, y) =>
+        (x >= 18 && x <= 22 && y == 13 + (x - 18)) || ((x == 19 || x == 21) && y == 14 + (x - 18)) ? new Color(0.8f, 0.45f, 0.45f) : Clear);
+    public static Sprite DiffHearingAid() => FaceLayer("diff_hearingaid", (x, y) =>
+        (x >= 24 && x <= 25 && y >= 13 && y <= 17) || (x == 23 && y == 15) ? new Color(0.85f, 0.75f, 0.6f) : Clear);
+    public static Sprite DiffGlasses() => FaceLayer("diff_glasses", (x, y) =>
+    {
+        bool rimL = x >= 10 && x <= 15 && y >= 14 && y <= 18, rimR = x >= 17 && x <= 22 && y >= 14 && y <= 18;
+        bool inL = x >= 11 && x <= 14 && y >= 15 && y <= 17, inR = x >= 18 && x <= 21 && y >= 15 && y <= 17;
+        if (inL || inR) return new Color(0.7f, 0.85f, 1f, 0.35f);
+        if (rimL || rimR || (y == 16 && x == 16)) return FaceInk;
+        return Clear;
+    });
+    public static Sprite DiffBirthmark() => FaceLayer("diff_birthmark", (x, y) =>
+        InHead(x, y, false) && new Vector2((x - 10f) * 0.9f, y - 12f).magnitude < 3.5f + Mathf.Sin(x * 1.7f + y) * 0.8f ? new Color(0.6f, 0.15f, 0.35f, 0.45f) : Clear);
+    public static Sprite DiffVitiligo() => FaceLayer("diff_vitiligo", (x, y) =>
+        InHead(x, y, false) && (new Vector2(x - 20f, y - 19f).magnitude < 2.6f || new Vector2(x - 12f, y - 9f).magnitude < 2.2f || new Vector2(x - 15f, y - 3f).magnitude < 1.8f)
+            ? new Color(1f, 0.97f, 0.92f, 0.55f) : Clear);
+
+    // Head shape: oval face, ears (round or pointy) and neck
+    private static bool InHead(int x, int y, bool pointy)
+    {
+        float px = x + 0.5f, py = y + 0.5f;
+        if (Mathf.Pow((px - 16f) / 7.5f, 2) + Mathf.Pow((py - 16f) / 10.5f, 2) <= 1f) return true;
+        if (px >= 13f && px <= 19f && py <= 7f) return true; // neck
+        foreach (int side in new[] { -1, 1 })
+        {
+            float ex = 16f + side * 7.8f;
+            if (!pointy && new Vector2(px - ex, py - 15f).magnitude <= 2.6f) return true;
+            if (pointy)
+            {
+                // Triangle from the side of the head up and out to a tip
+                float t = (py - 12f) / 10f, reach = 1.5f + 4f * t;
+                if (t >= 0f && t <= 1f && side * (px - 16f) >= 6.5f && side * (px - 16f) <= 6.5f + reach * (1f - t) + 1f) return true;
+            }
+        }
+        return false;
+    }
+
+    private static bool HeadEdge(int x, int y, bool pointy)
+    {
+        if (InHead(x, y, pointy)) return false;
+        return InHead(x + 1, y, pointy) || InHead(x - 1, y, pointy) || InHead(x, y + 1, pointy) || InHead(x, y - 1, pointy);
+    }
+
+    private static Color EyePair(int x, int y, Color white, Color pupil, bool slit)
+    {
+        bool left = x >= 12 && x <= 13, right = x >= 19 && x <= 20;
+        if (!(left || right) || y < 15 || y > 17) return Clear;
+        bool center = slit ? (x == 13 || x == 20) : (x == 13 || x == 20) && y == 16;
+        if (slit && y == 17 && !center) return Clear;
+        return center ? pupil : white;
+    }
+
+    private static Color HairShade(int x, int y) => (x + y) % 5 == 0 ? new Color(0.78f, 0.78f, 0.78f) : Color.white;
+
+    private static Sprite FaceLayer(string key, System.Func<int, int, Color> paint)
+    {
+        if (cache.TryGetValue(key, out Sprite cached)) return cached;
+        Texture2D tex = NewTexture(F, F);
+        for (int y = 0; y < F; y++)
+            for (int x = 0; x < F; x++)
+                tex.SetPixel(x, y, paint(x, y));
+        return Save(key, tex, 32f);
+    }
+
+    // ---------------- Fingerprint (last chance) ----------------
+
+    // White fingerprint ridges (oval loops with a few breaks), filled bottom-up in the UI
+    public static Sprite Fingerprint()
+    {
+        if (cache.TryGetValue("fingerprint", out Sprite cached)) return cached;
+        const int w = 48, h = 60;
+        Texture2D tex = NewTexture(w, h);
+        Vector2 core = new Vector2(w / 2f, h * 0.55f);
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++)
+            {
+                Vector2 p = new Vector2(x + 0.5f - core.x, (y + 0.5f - core.y) * 0.8f);
+                float r = p.magnitude;
+                // The outline of a fingertip: an oval, flat at the bottom
+                Vector2 o = new Vector2((x + 0.5f - w / 2f) / (w / 2f - 1f), (y + 0.5f - h / 2f) / (h / 2f - 1f));
+                if (o.sqrMagnitude > 1f || y < 3) continue;
+                float angle = Mathf.Atan2(p.y, p.x);
+                // Ridges every 3.4 px, wobbling a little; breaks at a few angles like a real print
+                float ridge = Mathf.Repeat(r + 0.9f * Mathf.Sin(angle * 3f + r * 0.15f), 3.4f);
+                bool gap = Mathf.Sin(angle * 5f + Mathf.Floor(r / 3.4f) * 1.7f) > 0.93f;
+                if (ridge < 1.3f && !gap && r > 1.5f) tex.SetPixel(x, y, Color.white);
+            }
+        return Save("fingerprint", tex, 100f);
+    }
+
     private static Texture2D NewTexture(int w, int h)
     {
         Texture2D tex = new Texture2D(w, h, TextureFormat.RGBA32, false)

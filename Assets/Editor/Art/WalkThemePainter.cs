@@ -180,59 +180,99 @@ public static class WalkThemePainter
         p.Circle(122, 70, 8, new Color(0.82f, 0.70f, 0.45f), new Color(0.70f, 0.58f, 0.36f));
     }
 
-    // ---------------- Sewer: sewage channel | wet brick walkway | stone wall with a rusty pipe ----------------
+    // ---------------- Sewer: the street, but old and worn, with drains everywhere ----------------
+    // (the trap is falling down a drain, so you walk along a run-down street full of them).
+    // Starts from the street as it is painted now (Walk/Street.png) so it keeps the same style.
+
+    private const string StreetPng = "Assets/Resources/Sprites/Walk/Street.png";
 
     private static void PaintSewer(Painter p)
     {
-        Color water = new Color(0.16f, 0.26f, 0.15f);
-        Color ripple = new Color(0.30f, 0.42f, 0.22f);
-        Color edge = new Color(0.30f, 0.31f, 0.30f);
-        Color stone = new Color(0.28f, 0.26f, 0.24f);
+        if (System.IO.File.Exists(StreetPng))
+        {
+            Texture2D street = new Texture2D(2, 2);
+            street.LoadImage(System.IO.File.ReadAllBytes(StreetPng));
+            p.Load(street);
+        }
+        else PaintStreet(p);
 
+        // Old: faded, a bit darker, with brown grime
+        Color grime = new Color(0.42f, 0.37f, 0.28f);
         for (int y = 0; y < H; y++)
             for (int x = 0; x < W; x++)
             {
-                if (x < 42)
-                {
-                    // Ripples follow a sine pattern; the scroll makes them look like flowing water
-                    bool r = Mathf.Sin(y * 0.4f + Mathf.Sin(x * 0.3f) * 2f) > 0.85f;
-                    p.SetNoisy(x, y, r ? ripple : water);
-                }
-                else if (x < 46) p.SetNoisy(x, y, x == 42 ? edge * 0.7f : edge);
-                else if (x < 107) p.SetNoisy(x, y, BrickColor(x - 46, y, new Color(0.24f, 0.26f, 0.29f), new Color(0.15f, 0.16f, 0.18f)));
-                else p.SetNoisy(x, y, StoneBlockColor(x - 107, y, stone, stone * 0.6f));
+                Color c = p.Get(x, y);
+                float gray = c.grayscale;
+                c = Color.Lerp(c, new Color(gray, gray, gray), 0.3f) * 0.88f;
+                c = Color.Lerp(c, grime, p.Chance(0.15f) ? 0.25f : 0.1f);
+                p.Set(x, y, c);
             }
 
-        // Moss on the channel edge and puddles on the walkway
-        for (int i = 0; i < 30; i++) p.Set(p.Range(42, 47), p.Range(0, H), new Color(0.22f, 0.40f, 0.16f));
-        for (int i = 0; i < 5; i++)
-        {
-            int cx = p.Range(52, 100), cy = p.Range(0, H);
-            p.Circle(cx, cy, p.Range(2, 5), new Color(0.32f, 0.38f, 0.44f), new Color(0.27f, 0.32f, 0.37f));
-        }
-
-        // Floating junk
-        p.Rect(10, 30, 13, 31, new Color(0.75f, 0.75f, 0.70f));
-        p.Rect(27, 90, 28, 94, new Color(0.25f, 0.45f, 0.25f));
-        p.Rect(30, 92, 31, 93, new Color(0.65f, 0.55f, 0.35f));
-
-        // Grate in the walkway
-        for (int y = 60; y < 72; y++)
-            for (int x = 70; x < 84; x++)
-                p.Set(x, y, x % 3 == 0 ? new Color(0.05f, 0.05f, 0.06f) : new Color(0.33f, 0.33f, 0.35f));
-
-        // Rusty pipe along the wall with joint rings, and green slime streaks
-        Color rust = new Color(0.52f, 0.32f, 0.20f), rustLight = new Color(0.70f, 0.45f, 0.28f);
+        // The lane line is almost gone: only bits of paint left
         for (int y = 0; y < H; y++)
+            for (int x = 0; x < 40; x++)
+            {
+                Color c = p.Get(x, y);
+                bool paint = c.r > 0.25f && c.r - c.b > 0.12f;
+                if (paint && (y / 3 + x) % 4 != 0) p.Set(x, y, Color.Lerp(c, new Color(0.17f, 0.17f, 0.18f), 0.85f));
+            }
+
+        // Potholes on the road, more cracks everywhere and a missing sidewalk slab
+        Color holeDark = new Color(0.08f, 0.08f, 0.09f), holeRim = new Color(0.30f, 0.29f, 0.27f);
+        Blob(p, 12, 58, 5, 3, holeRim, holeDark);
+        Blob(p, 28, 112, 4, 3, holeRim, holeDark);
+        Color crack = new Color(0.22f, 0.21f, 0.19f);
+        for (int i = 0; i < 12; i++)
         {
-            for (int x = 112; x < 118; x++) p.Set(x, y, x == 113 ? rustLight : rust);
-            if (y % 32 < 2) p.Rect(111, y, 118, y, rust * 0.7f);
+            int x = p.Range(2, 110), y = p.Range(0, H);
+            for (int s = 0; s < p.Range(8, 20); s++)
+            {
+                p.Set(x, y, crack);
+                x = Mathf.Clamp(x + p.Range(-1, 2), 0, 110);
+                y++;
+            }
         }
-        for (int i = 0; i < 6; i++)
+        for (int y = 100; y < 126; y++)
+            for (int x = 82; x < 108; x++)
+                p.SetNoisy(x, y, p.Chance(0.2f) ? new Color(0.50f, 0.44f, 0.34f) : new Color(0.38f, 0.32f, 0.24f), amount: 0.05f);
+
+        // Drains: storm grates along the curb (with a dark wet stain and a puddle),
+        // manholes on the road and on the sidewalk
+        foreach (int gy in new[] { 6, 92 }) // the street already has a big grate in the middle
         {
-            int x = p.Range(119, 127), y = p.Range(0, H);
-            for (int s = 0; s < 10; s++) p.Set(x, y - s, new Color(0.30f, 0.50f, 0.20f));
+            for (int y = gy - 3; y < gy + 13; y++)
+                for (int x = 30; x < 46; x++)
+                    p.Tint(x, y, new Color(0.10f, 0.12f, 0.12f), 0.35f * (1f - Mathf.Abs(y - gy - 5) / 9f));
+            for (int y = gy; y < gy + 10; y++)
+                for (int x = 33; x < 40; x++)
+                    p.Set(x, y, y % 2 == 0 ? new Color(0.06f, 0.06f, 0.07f) : new Color(0.34f, 0.32f, 0.30f));
+            p.Rect(32, gy - 1, 40, gy - 1, new Color(0.20f, 0.19f, 0.18f));
+            p.Rect(32, gy + 10, 40, gy + 10, new Color(0.20f, 0.19f, 0.18f));
+            Blob(p, 24, gy + 5, 4, 2, new Color(0.22f, 0.26f, 0.30f), new Color(0.27f, 0.32f, 0.37f)); // puddle
         }
+        foreach (Vector2Int m in new[] { new Vector2Int(18, 28), new Vector2Int(96, 66) })
+        {
+            p.Circle(m.x, m.y, 6, new Color(0.30f, 0.29f, 0.27f), new Color(0.14f, 0.14f, 0.15f));
+            for (int y = m.y - 3; y <= m.y + 3; y++)
+                for (int x = m.x - 3; x <= m.x + 3; x++)
+                    if ((x + y) % 3 == 0) p.Set(x, y, new Color(0.20f, 0.19f, 0.18f));
+            for (int i = 0; i < 6; i++) p.Set(m.x + p.Range(-5, 6), m.y + p.Range(-5, 6), new Color(0.45f, 0.30f, 0.18f)); // rust
+        }
+
+        // Moss and weeds in the cracks by the wall
+        for (int i = 0; i < 40; i++) p.Set(p.Range(44, 112), p.Range(0, H), p.Chance(0.5f) ? new Color(0.24f, 0.36f, 0.16f) : new Color(0.30f, 0.44f, 0.18f));
+    }
+
+    // A rough oval (potholes, puddles)
+    private static void Blob(Painter p, int cx, int cy, int rx, int ry, Color border, Color fill)
+    {
+        for (int y = -ry - 1; y <= ry + 1; y++)
+            for (int x = -rx - 1; x <= rx + 1; x++)
+            {
+                float d = (x * x) / (float)(rx * rx) + (y * y) / (float)(ry * ry);
+                if (d <= 0.6f) p.Set(cx + x, cy + y, fill);
+                else if (d <= 1.15f) p.Set(cx + x, cy + y, border);
+            }
     }
 
     // ---------------- Hotel: wall with doors | wood floor | carpet runner | wood floor | wall with doors ----------------
@@ -300,13 +340,6 @@ public static class WalkThemePainter
         return (y % 4 == 0 || bx == 0) ? mortar : brick;
     }
 
-    private static Color StoneBlockColor(int x, int y, Color stone, Color mortar)
-    {
-        int row = y / 10;
-        int bx = (x + (row % 2 == 0 ? 0 : 6)) % 12;
-        return (y % 10 == 0 || bx == 0) ? mortar : stone;
-    }
-
     private class Painter
     {
         private readonly Color[] px = new Color[W * H];
@@ -331,6 +364,16 @@ public static class WalkThemePainter
         {
             float n = (float)rng.NextDouble() * amount * 2f - amount + shift;
             Set(x, y, new Color(c.r + n, c.g + n, c.b + n));
+        }
+
+        public Color Get(int x, int y) => px[(((y % H) + H) % H) * W + Mathf.Clamp(x, 0, W - 1)];
+
+        // Starts from an existing 128x128 picture
+        public void Load(Texture2D tex)
+        {
+            for (int y = 0; y < H; y++)
+                for (int x = 0; x < W; x++)
+                    px[y * W + x] = tex.GetPixel(x * tex.width / W, y * tex.height / H);
         }
 
         public void Tint(int x, int y, Color tint, float amount)

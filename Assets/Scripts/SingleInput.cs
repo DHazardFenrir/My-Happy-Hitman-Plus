@@ -10,4 +10,11 @@ public class SingleInput : MonoBehaviour
         Input.GetKeyDown(KeyCode.Space) ||
         Input.GetMouseButtonDown(0) ||
         (Input.touchCount > 0 && Input.GetTouch(0).phase == TouchPhase.Began);
+
+    // The button is down this frame (for "hold and release" minigames)
+    public static bool ActionHeld =>
+        Autopilot.Holding ||
+        Input.GetKey(KeyCode.Space) ||
+        Input.GetMouseButton(0) ||
+        Input.touchCount > 0;
 }

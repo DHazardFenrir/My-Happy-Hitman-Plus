@@ -40,4 +40,12 @@ public static class Autopilot
     public static void Press() => simulatedPressFrame = Time.frameCount;
 
     public static bool PressedThisFrame => simulatedPressFrame == Time.frameCount;
+
+    // The bot keeps the button down (read through SingleInput.ActionHeld)
+    public static bool Holding { get; private set; }
+    public static void Hold(bool down)
+    {
+        if (down && !Holding) Press();
+        Holding = down;
+    }
 }

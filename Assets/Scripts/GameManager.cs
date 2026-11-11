@@ -38,6 +38,9 @@ public class GameManager : MonoBehaviour
     public float adExtraSeconds = 2f;
     [Tooltip("With more fails than this, the trap happens to you \"in real life\"")]
     public int irlDeathAfterFails = 30;
+    [Tooltip("Last chance before that death (once per drone): taps needed to fill the fingerprint, and the seconds you get")]
+    public int fingerprintTaps = 14;
+    public float fingerprintSeconds = 3.5f;
 
     [Header("Music")]
     [Tooltip("Default track (menu and start of the run). Auto-filled in the editor from Assets/OST (a clip with \"Happy\" in its name)")]
@@ -51,15 +54,23 @@ public class GameManager : MonoBehaviour
     public int terrorStartScore = 0;
     [Tooltip("Score where the terror track is fully in and the happy one is gone (the target score)")]
     public int terrorFullScore = 1000;
+    [Tooltip("The mix changes in steps of this many points: 200 = happy 100/terror 0, then 80/20, 60/40... every two wins, all terror at the last one. 0 = smooth")]
+    public int musicStepScore = 200;
     [Tooltip("Seconds each volume change takes")]
     public float musicFadeSeconds = 2.5f;
+    [Tooltip("Seconds the slow crossfade back to the happy track takes after the credits")]
+    public float musicReturnSeconds = 10f;
+    [Tooltip("Speed of the terror track (fixed for the whole game). Below 1 it plays slower and lower")]
+    [Range(0.5f, 1f)] public float terrorMusicSpeed = 0.9f;
 
     [Header("Ending")]
     [Tooltip("Minigame used as the backdrop of the ending (the street). If empty, the first one in the list is used")]
     public WarioStage endingBackdrop;
 
     private int score = 0;
+    public int Score => score; // minigames that get harder as you progress read it
     private int failCount = 0;
+    private bool fingerprintUsed; // the last chance, once per drone
     private GameUI ui;
     private IrlDeathSequence irlDeath;
     private WalkingBackground walking;
@@ -101,7 +112,8 @@ public class GameManager : MonoBehaviour
         Canvas mainCanvas = gameScreen != null ? gameScreen.GetComponentInParent<Canvas>() : FindAnyObjectByType<Canvas>();
         ui.Build(mainCanvas, gameScreen, uiFont, StartGame);
         ui.StyleScore(scoreText);
-        music.Setup(happyMusic, terrorMusic, musicVolume, musicBlend, terrorStartScore, terrorFullScore, musicFadeSeconds);
+        music.Setup(happyMusic, terrorMusic, musicVolume, musicBlend, terrorStartScore, terrorFullScore, musicFadeSeconds, terrorMusicSpeed);
+        music.StepScore = musicStepScore;
         ShowStartMenu();
     }
 
@@ -134,10 +146,12 @@ public class GameManager : MonoBehaviour
         failCount = 0;
         UpdateScore();
         WarioStage lastPrefab = null;
+        stageBag.Clear(); // every run starts with all the minigames still to come
 
         // A new drone to train
         SetGameScreenVisible(false);
         AssignedDrone.AssignNew();
+        fingerprintUsed = false;
         yield return ui.ShowDroneCard(GameUI.DroneCard.Assigned, droneCardTime);
 
         while (score < targetScore)
@@ -180,7 +194,20 @@ public class GameManager : MonoBehaviour
             yield return new WaitForSeconds(afterActionDelay);
 
             // Too many fails: this minigame's trap happens to you, in real life
-            if (!success && failCount > irlDeathAfterFails)
+            // ...but first, once per drone, a last chance: re-authenticate with your fingerprint
+            bool savedByFingerprint = false;
+            if (!success && failCount > irlDeathAfterFails && !fingerprintUsed)
+            {
+                fingerprintUsed = true;
+                SetGameScreenVisible(false);
+                TrailerCapture.Log("fingerprint");
+                yield return ui.ShowFingerprintCard(fingerprintTaps, fingerprintSeconds);
+                savedByFingerprint = ui.FingerprintPassed;
+                TrailerCapture.Log(savedByFingerprint ? "fingerprint passed" : "fingerprint failed");
+                SetGameScreenVisible(true);
+            }
+
+            if (!success && failCount > irlDeathAfterFails && !savedByFingerprint)
             {
                 TrailerCapture.Log("irl start");
                 music.SetMasterVolume(musicVolume * 0.25f); // the alarm and the impact take over
@@ -193,6 +220,7 @@ public class GameManager : MonoBehaviour
                 // Your drone pays for it... and you get a new one
                 yield return ui.ShowDroneCard(GameUI.DroneCard.Destroyed, droneCardTime + 0.6f);
                 AssignedDrone.AssignNew();
+                fingerprintUsed = false;
                 yield return ui.ShowDroneCard(GameUI.DroneCard.Assigned, droneCardTime);
                 score = 0;          // RETRY: start the job over
                 failCount = 0;
@@ -223,21 +251,32 @@ public class GameManager : MonoBehaviour
         TrailerCapture.Log("ending start");
         music.SetIntensity(1f, instant: false); // the ending is all terror
         yield return TriggerEnding();
+        music.SetIntensity(0f, instant: false, musicReturnSeconds); // back to the happy track, slowly
         TrailerCapture.Finish();
         gameRoutine = null;
         ShowStartMenu();
     }
 
+    // Shuffle bag: every minigame comes up once, in random order, before any repeats
+    // (and never the same one twice in a row across bags)
+    private readonly System.Collections.Generic.List<WarioStage> stageBag = new System.Collections.Generic.List<WarioStage>();
+
     private WarioStage PickStagePrefab(WarioStage last)
     {
         if (minigamePrefabs.Length == 1) return minigamePrefabs[0];
 
-        // Avoid the same minigame twice in a row
-        WarioStage pick;
-        do
+        if (stageBag.Count == 0)
         {
-            pick = minigamePrefabs[Random.Range(0, minigamePrefabs.Length)];
-        } while (pick == last);
+            stageBag.AddRange(minigamePrefabs);
+            for (int i = stageBag.Count - 1; i > 0; i--)
+            {
+                int j = Random.Range(0, i + 1);
+                (stageBag[i], stageBag[j]) = (stageBag[j], stageBag[i]);
+            }
+            if (stageBag[0] == last) (stageBag[0], stageBag[stageBag.Count - 1]) = (stageBag[stageBag.Count - 1], stageBag[0]);
+        }
+        WarioStage pick = stageBag[0];
+        stageBag.RemoveAt(0);
         return pick;
     }
 
