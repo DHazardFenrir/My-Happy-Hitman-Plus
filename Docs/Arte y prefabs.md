@@ -135,4 +135,5 @@ Unity -batchmode -quit -projectPath . -executeMethod ArtBaker.MigrateAll
 
 - `HumanCheckStage`: revisas tres caras generadas (presionar = humano). La IA se equivoca con las personas con alguna diferencia facial y con los monstruos casi humanos; con 3 aciertos la cámara del dron acribilla al objetivo.
 - 24 capas de cara en `Assets/Resources/Sprites` (`face_*`, `eyes_*`, `mouth_*`, `hair_*`, `horns`, `antennae`, `scales`, `diff_*`), dibujadas originalmente en `SpritePainter` (sección Faces).
+- El cabello no debe tapar las orejas: con orejas puntiagudas o aparato auditivo no sale `hair_b` (el largo), solo `hair_a` o `hair_c`. Si repintas el cabello, que esos dos no lleguen a las orejas. Las orejas de `face_pointy` y los ojos de `eyes_slit` son grandes a propósito, para que se lean en el teléfono.
 - Fondo de caminata de la alcantarilla: la calle vieja con coladeras, generada a partir de `Walk/Street.png` (`WalkThemePainter.PaintSewer`).

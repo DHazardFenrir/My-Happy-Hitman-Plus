@@ -45,6 +45,7 @@ public class HumanCheckStage : DroneCamStage
     private readonly List<SpriteRenderer> pips = new List<SpriteRenderer>();
     private float progressToTarget;
     private int layerOrder; // drawing order of the next face layer
+    private string tell; // what gives this face away, shown when you get it wrong
     private bool threatMode;
     private NPCWalker target;
 
@@ -125,7 +126,9 @@ public class HumanCheckStage : DroneCamStage
             {
                 Stamp("VERIFICATION FAILED", Red);
                 pips[i].color = Red;
-                yield return new WaitForSeconds(0.6f);
+                aiLabel.text = isHuman ? tell : "MISSED: " + tell; // so a wrong answer is never a mystery
+                aiLabel.color = new Color(1f, 0.86f, 0.1f);
+                yield return new WaitForSeconds(1.1f);
                 OnTrapMissed();
                 yield break;
             }
@@ -200,6 +203,8 @@ public class HumanCheckStage : DroneCamStage
             if (Random.value < 0.4f) mouth = "mouth_fangs";
         }
 
+        tell = FindTell(kind, pointy, eyes, mouth, extras);
+
         // Back to front
         Layer(pointy ? "face_pointy" : "face_round", skin);
         Layer(pointy ? "face_pointy_line" : "face_round_line", Color.white);
@@ -209,7 +214,9 @@ public class HumanCheckStage : DroneCamStage
         foreach (string e in extras) if (e == "diff_eyepatch" || e == "diff_scar" || e == "diff_glasses" || e == "diff_hearingaid") Layer(e, Color.white);
         if (eyes != "eyes_cyclops" || Random.value < 0.5f)
         {
-            string[] hair = { "hair_a", "hair_b", "hair_c" };
+            // Hair never hides the ears (pointy ones are the only tell) or a hearing aid: long hair
+            // covers the sides of the head, so those faces get short hair or the bun
+            string[] hair = pointy ? new[] { "hair_a", "hair_c" } : extras.Contains("diff_hearingaid") ? new[] { "hair_a", "hair_c" } : new[] { "hair_a", "hair_b", "hair_c" };
             Layer(hair[Random.Range(0, hair.Length)], HairColors[Random.Range(0, HairColors.Length)]);
         }
         foreach (string e in extras) if (e == "horns" || e == "antennae") Layer(e, Color.white);
@@ -222,6 +229,20 @@ public class HumanCheckStage : DroneCamStage
             ? (aiSaysHuman ? $"AI: CIVILIAN {confidence}%" : $"AI: THREAT? {confidence}%")
             : (aiSaysHuman ? $"AI: HUMAN {confidence}%" : $"AI: NOT HUMAN? {confidence}%");
         SoundFX.Play(Sfx.ScanPing, 0.6f);
+    }
+
+    private static string FindTell(Kind kind, bool pointy, string eyes, string mouth, List<string> extras)
+    {
+        if (kind == Kind.Human) return "IT WAS HUMAN";
+        if (kind == Kind.HumanWithDifference) return "STILL HUMAN";
+        if (pointy) return "POINTY EARS";
+        if (eyes == "eyes_slit") return "SLIT EYES";
+        if (eyes == "eyes_three") return "THREE EYES";
+        if (eyes == "eyes_cyclops") return "ONE EYE";
+        if (extras.Contains("horns")) return "HORNS";
+        if (extras.Contains("antennae")) return "ANTENNAE";
+        if (extras.Contains("scales")) return "SCALES";
+        return mouth == "mouth_fangs" ? "FANGS" : "NOT HUMAN";
     }
 
     private void Layer(string key, Color tint)

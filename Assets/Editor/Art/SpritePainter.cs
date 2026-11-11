@@ -737,13 +737,23 @@ public static class SpritePainter
     public static Sprite FacePointyLine() => FaceLayer("face_pointy_line", (x, y) => HeadEdge(x, y, true) ? FaceInk : Clear);
 
     // Eyes at y = 16, x = 12..13 and 19..20
-    public static Sprite EyesA() => FaceLayer("eyes_a", (x, y) => EyePair(x, y, Color.white, FaceInk, false));
+    public static Sprite EyesA() => FaceLayer("eyes_a", (x, y) => EyePair(x, y, Color.white, FaceInk));
     public static Sprite EyesB() => FaceLayer("eyes_b", (x, y) =>
         (y == 16 && (x == 12 || x == 20)) ? FaceInk : (y == 18 && (x >= 11 && x <= 13 || x >= 19 && x <= 21)) ? new Color(0.25f, 0.18f, 0.12f) : Clear);
-    public static Sprite EyesSlit() => FaceLayer("eyes_slit", (x, y) => EyePair(x, y, new Color(0.95f, 0.85f, 0.2f), FaceInk, true));
+    // Bigger almond eyes than the human ones: glowing yellow with a black vertical slit and dark lids
+    public static Sprite EyesSlit() => FaceLayer("eyes_slit", (x, y) =>
+    {
+        foreach (int cx in new[] { 12, 20 })
+        {
+            float d = Mathf.Pow((x - cx) / 2.2f, 2) + Mathf.Pow((y - 16f) / 1.7f, 2);
+            if (d <= 1f) return x == cx ? FaceInk : new Color(0.95f, 0.85f, 0.2f);
+            if (d <= 1.6f) return FaceInk;
+        }
+        return Clear;
+    });
     public static Sprite EyesThree() => FaceLayer("eyes_three", (x, y) =>
     {
-        Color c = EyePair(x, y, Color.white, FaceInk, false);
+        Color c = EyePair(x, y, Color.white, FaceInk);
         if (c.a > 0f) return c;
         if (y >= 20 && y <= 21 && x >= 15 && x <= 17) return (x == 16) ? FaceInk : Color.white;
         return Clear;
@@ -826,9 +836,11 @@ public static class SpritePainter
             if (!pointy && new Vector2(px - ex, py - 15f).magnitude <= 2.6f) return true;
             if (pointy)
             {
-                // Triangle from the side of the head up and out to a tip
-                float t = (py - 12f) / 10f, reach = 1.5f + 4f * t;
-                if (t >= 0f && t <= 1f && side * (px - 16f) >= 6.5f && side * (px - 16f) <= 6.5f + reach * (1f - t) + 1f) return true;
+                // Elf ear: a spike that leans out as it rises, from the side of the head to a sharp
+                // tip well above the eyes (so it reads at a glance, past any hair)
+                float t = (py - 11f) / 16f, outer = 7.6f + 6.4f * t, width = 5f * (1f - t) + 0.6f;
+                float dx = side * (px - 16f);
+                if (t >= 0f && t <= 1f && dx <= outer && dx >= outer - width) return true;
             }
         }
         return false;
@@ -840,13 +852,11 @@ public static class SpritePainter
         return InHead(x + 1, y, pointy) || InHead(x - 1, y, pointy) || InHead(x, y + 1, pointy) || InHead(x, y - 1, pointy);
     }
 
-    private static Color EyePair(int x, int y, Color white, Color pupil, bool slit)
+    private static Color EyePair(int x, int y, Color white, Color pupil)
     {
         bool left = x >= 12 && x <= 13, right = x >= 19 && x <= 20;
         if (!(left || right) || y < 15 || y > 17) return Clear;
-        bool center = slit ? (x == 13 || x == 20) : (x == 13 || x == 20) && y == 16;
-        if (slit && y == 17 && !center) return Clear;
-        return center ? pupil : white;
+        return (x == 13 || x == 20) && y == 16 ? pupil : white;
     }
 
     private static Color HairShade(int x, int y) => (x + y) % 5 == 0 ? new Color(0.78f, 0.78f, 0.78f) : Color.white;
