@@ -11,7 +11,9 @@ using static StageBuilder;
 // After the last square it verifies by itself: every square with a good part of the target marked
 // and none without it = VERIFIED, and the drone uses your labels to shoot (the picture was real).
 // Marking someone else's square gets THAT person shot; missing a square is "Please try again".
-// Squares where the target barely shows (a foot, an elbow) are optional: marking them is fine.
+// Only squares holding a big part of the target (requiredShare, the whole time the cursor is there) are
+// required; where it barely shows (the head, a foot) is optional: marking them is fine. The target is
+// always drawn in front of everyone, and a fail frames the squares that were MISSED or had NO TARGET.
 // From liveFromScore points on, the picture is live video: people walk while the cursor moves.
 // The street picture lives in the prefab; the grid, the widget and the people are made here.
 public class CaptchaStage : WarioStage
@@ -24,7 +26,7 @@ public class CaptchaStage : WarioStage
     [Tooltip("People in the picture besides the target, at 0 points and at the target score")]
     [SerializeField] private Vector2Int decoys = new Vector2Int(3, 5);
     [Tooltip("A square is required when it holds at least this part of the target's body")]
-    [SerializeField, Range(0.05f, 0.5f)] private float requiredShare = 0.2f;
+    [SerializeField, Range(0.05f, 0.5f)] private float requiredShare = 0.35f;
     [Tooltip("How tall people look, in squares")]
     [SerializeField] private float personHeightInSquares = 1.45f;
     [Tooltip("Top of the sidewalk in the street picture: people's feet always go below it (move it if you repaint the picture)")]
@@ -61,6 +63,7 @@ public class CaptchaStage : WarioStage
     private int autopilotMistake = -2;
 
     public override WalkTheme Theme => WalkTheme.Street;
+    public override string ActionVerb => "LABEL!";
     public override IrlDeathKind IrlDeath => IrlDeathKind.ShotByDrone;
     public override Sprite IrlThreatSprite => GameSprites.Drone(0);
 
@@ -204,6 +207,8 @@ public class CaptchaStage : WarioStage
         }
 
         people.Sort((a, b) => b.BodyRect.yMin.CompareTo(a.BodyRect.yMin)); // highest feet first (behind)
+        people.Remove(target);
+        people.Add(target); // ...except the target, always in front: nobody walking by can hide it
         for (int i = 0; i < people.Count; i++)
             people[i].gameObject.AddComponent<SortingGroup>().sortingOrder = 3 + i;
     }
@@ -306,6 +311,10 @@ public class CaptchaStage : WarioStage
             yield break;
         }
 
+        // Shows what went wrong, so a fail is never a mystery
+        ShowMistakes();
+        yield return new WaitForSeconds(0.6f);
+
         // A wrong label points the drone at whoever is in that square
         NPCWalker wronged = wrong ? MostInsideWrongSquares() : null;
         if (wronged != null)
@@ -322,6 +331,22 @@ public class CaptchaStage : WarioStage
         robotLabel.rectTransform.localPosition -= new Vector3(0.4f, 0f, 0f); // where the checkbox was
         yield return new WaitForSeconds(0.7f);
         OnTrapMissed();
+    }
+
+    // Red frame + "MISSED" on squares that needed a mark, red frame + "NO TARGET" on marks with no target
+    private void ShowMistakes()
+    {
+        Color red = new Color(0.95f, 0.15f, 0.15f);
+        foreach (Cell c in cells)
+        {
+            bool wrongMark = c.marked && c.maxShare <= 0.001f, missedMark = !c.marked && c.minShare >= requiredShare;
+            if (!wrongMark && !missedMark) continue;
+            Rect r = new Rect(c.rect.x + 0.06f, c.rect.y + 0.06f, c.rect.width - 0.12f, c.rect.height - 0.12f);
+            Outline(transform, "Mistake", r, 0.1f, red, 30);
+            Box(transform, "Mistake Tag", r.center.x, r.yMin + 0.2f, r.width - 0.1f, 0.3f, red, 30);
+            TextMeshPro t = WorldText(transform, missedMark ? "MISSED" : "NO TARGET", r.center.x, r.yMin + 0.2f, r.width - 0.2f, 0.2f, Color.white, 31);
+            t.fontStyle = FontStyles.Bold;
+        }
     }
 
     // The person (not the target) with the most body inside the squares wrongly marked

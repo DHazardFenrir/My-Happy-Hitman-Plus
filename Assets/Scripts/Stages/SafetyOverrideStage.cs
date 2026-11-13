@@ -41,6 +41,7 @@ public class SafetyOverrideStage : DroneCamStage
     private bool botFast;
 
     public override WalkTheme Theme => WalkTheme.Crosswalk;
+    public override string ActionVerb => "MASH!";
     protected override Color HudColor => new Color(1f, 1f, 1f, 0.9f);
     protected override string CamLabel => "STRIKE // " + AssignedDrone.Tag;
     protected override bool HasCrosshair => false;

@@ -37,6 +37,7 @@ public class SignalScanStage : DroneCamStage
     private float autopilotRelease;
 
     public override WalkTheme Theme => WalkTheme.Crosswalk;
+    public override string ActionVerb => "SCAN!";
     protected override Color HudColor => new Color(Cyan.r, Cyan.g, Cyan.b, 0.95f);
     protected override string CamLabel => "SIGNAL SCAN // " + AssignedDrone.Tag;
     protected override Color FilterTint => new Color(0.05f, 0.25f, 0.6f, 0.28f);
@@ -66,7 +67,7 @@ public class SignalScanStage : DroneCamStage
         // The scan origin: where the drone hovers, near the target but never right on it
         offsetDir = Random.insideUnitCircle.normalized;
         if (Mathf.Abs(offsetDir.y) > 0.6f) offsetDir = new Vector2(Mathf.Sign(offsetDir.x + 0.01f), 0.4f * Mathf.Sign(offsetDir.y)).normalized;
-        offsetDistance = Random.Range(originOffset.x, originOffset.y);
+        offsetDistance = Random.Range(originOffset.x, originOffset.y) * Mathf.Lerp(0.6f, 1f, progress); // closer early: a small ring is enough
         origin = new GameObject("Scan Origin").transform;
         origin.SetParent(transform, false);
         SpriteAt(origin, "Drone", GameSprites.Drone(0), 0f, 0.05f, 0.6f, Color.white, 33);

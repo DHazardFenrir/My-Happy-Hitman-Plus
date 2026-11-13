@@ -15,6 +15,7 @@ public class PianoDropStage : WarioStage
     private bool dropped = false;
 
     public override WalkTheme Theme => WalkTheme.Construction;
+    public override string ActionVerb => "DROP!";
     public override IrlDeathKind IrlDeath => IrlDeathKind.CrushedFromAbove;
     public override Sprite IrlThreatSprite => pianoRigidbody != null && pianoRigidbody.TryGetComponent(out SpriteRenderer sr) ? sr.sprite : null;
     private bool freezeCrane = false;
@@ -93,6 +94,13 @@ public class PianoDropStage : WarioStage
         float gravity = Mathf.Abs(Physics2D.gravity.y) * dropGravityScale;
         delay = Mathf.Sqrt(2f * Mathf.Max(0f, b.min.y - NPCHeadY()) / gravity);
         return true;
+    }
+
+    public override bool TryGetTrapZone(out float centerX, out float halfWidth)
+    {
+        bool ok = TryGetTrapAim(out centerX, out _);
+        halfWidth = ok ? pianoRigidbody.GetComponent<Collider2D>().bounds.extents.x : 0f;
+        return ok;
     }
 
     public void OnPianoHitNPC(NPCWalker npc) => OnTrapHitNPC(npc);

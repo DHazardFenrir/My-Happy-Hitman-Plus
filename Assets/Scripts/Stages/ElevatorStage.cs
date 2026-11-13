@@ -24,6 +24,7 @@ public class ElevatorStage : WarioStage
     private bool triggered;
 
     public override WalkTheme Theme => WalkTheme.Hotel;
+    public override string ActionVerb => "PULL!";
     public override IrlDeathKind IrlDeath => IrlDeathKind.Fall;
 
     protected override void OnStageUpdate()
@@ -83,5 +84,11 @@ public class ElevatorStage : WarioStage
         worldX = transform.TransformPoint(new Vector3(shaftCenterX, 0f, 0f)).x;
         delay = 0f;
         return true;
+    }
+
+    public override bool TryGetTrapZone(out float centerX, out float halfWidth)
+    {
+        halfWidth = shaftWidth / 2f * 0.8f; // the same tolerance PullLever uses
+        return TryGetTrapAim(out centerX, out _);
     }
 }

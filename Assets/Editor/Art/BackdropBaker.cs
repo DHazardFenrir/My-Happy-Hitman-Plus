@@ -10,7 +10,7 @@ using UnityEngine;
 // Scenery drawn above the moving parts (e.g. the kennel roof in front of the dogs) goes to a second
 // "front" PNG. Existing PNGs are never overwritten: run it again after "Rebuild ... stage" and it
 // reuses your painted ones.
-// Needs the game scene open (it renders with its 2D global light).
+// Needs the game scene open (it renders with its 2D global light). The hotel has its own menu item.
 public static class BackdropBaker
 {
     public const string Folder = "Assets/Art/StageBackdrops";
@@ -26,6 +26,15 @@ public static class BackdropBaker
         Bake(StageSetBaker.DogsPath, "GuardDogs", frontAbove: -5);
         Bake(StageSetBaker.PlazaPath, "DronePlaza", frontAbove: int.MaxValue);
         Bake(StageSetBaker.NightPath, "DroneNight", frontAbove: int.MaxValue);
+        AssetDatabase.SaveAssets();
+    }
+
+    // The hotel hallway: wallpaper, wainscot, door frame, signs... behind the monitos; the carpet and
+    // the floor edges (order 10-11) are drawn in front of their feet. The cab, lever and needle move.
+    [MenuItem("Tools/Agent TR8N1/Bake hotel (elevator) backdrop to PNG")]
+    public static void BakeHotel()
+    {
+        Bake(StageSetBaker.ElevatorPath, "Hotel", frontAbove: 4);
         AssetDatabase.SaveAssets();
     }
 

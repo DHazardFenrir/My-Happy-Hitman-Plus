@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using TMPro;
 using UnityEngine;
 
 // How the player dies "in real life" after failing too many times
@@ -31,6 +32,9 @@ public abstract class WarioStage : MonoBehaviour
     [Tooltip("Monito walking speed in this minigame (0 = the prefab value)")]
     public float npcMoveSpeed = 1.4f;
 
+    [Tooltip("Walking speed at 0 points, as a fraction of npcMoveSpeed (it reaches the full speed at the target score)")]
+    [Range(0.3f, 1f)] public float easySpeedFactor = 0.75f;
+
     [Tooltip("Margin from the edge of the phone screen where monitos pop in/out")]
     public float screenMargin = 0.35f;
 
@@ -55,6 +59,10 @@ public abstract class WarioStage : MonoBehaviour
 
     // World area visible on the phone screen
     protected Rect view;
+
+    // 0 at the start of the run, 1 at the target score: minigames start chill and get tougher
+    protected float Difficulty => GameManager.Instance != null && GameManager.Instance.targetScore > 0
+        ? Mathf.Clamp01((float)GameManager.Instance.Score / GameManager.Instance.targetScore) : 0f;
 
     private static readonly NPCAppearance.ClothingPart[] availableCombinations =
     {
@@ -127,7 +135,8 @@ public abstract class WarioStage : MonoBehaviour
 
         // Monitos spawn INSIDE the phone screen (they never walk in from outside the frame):
         // a row starting at the spawnPoint or at the visible left edge, whichever is further in.
-        // The positions are shuffled so the target isn't always first.
+        // Early on the target takes the spot farthest from the trap (it arrives last, so there's time
+        // to spot it); as the score goes up it's more and more likely to be anywhere in the row.
         float startX = Mathf.Max(spawnPoint.position.x, view.xMin + screenMargin);
         List<Vector3> slots = new List<Vector3>();
         float currentXOffset = 0f;
@@ -136,7 +145,11 @@ public abstract class WarioStage : MonoBehaviour
             slots.Add(new Vector3(startX + currentXOffset, spawnPoint.position.y, spawnPoint.position.z));
             currentXOffset += Random.Range(0.6f, 0.8f);
         }
+        int targetSlot = Random.value < Difficulty * Difficulty ? Random.Range(0, slots.Count) : FarthestFromTrap(slots); // 1% at 100 points, 25% at 500, 100% at the target score
+        Vector3 targetPosition = slots[targetSlot];
+        slots.RemoveAt(targetSlot);
         Shuffle(slots);
+        slots.Insert(0, targetPosition);
 
         SpawnNPC(slots[0], target, true);
 
@@ -146,6 +159,15 @@ public abstract class WarioStage : MonoBehaviour
             SpawnNPC(slots[i + 1], extraNPCPool[randDistractor], false);
             extraNPCPool.RemoveAt(randDistractor);
         }
+    }
+
+    private int FarthestFromTrap(List<Vector3> slots)
+    {
+        if (!TryGetTrapZone(out float trapX, out _)) return Random.Range(0, slots.Count);
+        int best = 0;
+        for (int i = 1; i < slots.Count; i++)
+            if (Mathf.Abs(slots[i].x - trapX) > Mathf.Abs(slots[best].x - trapX)) best = i;
+        return best;
     }
 
     // Starts the timer and focuses the camera first, to know which part of the world is visible on the phone.
@@ -179,7 +201,7 @@ public abstract class WarioStage : MonoBehaviour
             walker.clothingPart = clothing;
             walker.isTarget = isTarget;
             walker.CanMove = false; // They don't walk until the minigame starts
-            if (npcMoveSpeed > 0f) walker.moveSpeed = npcMoveSpeed;
+            if (npcMoveSpeed > 0f) walker.moveSpeed = npcMoveSpeed * Mathf.Lerp(easySpeedFactor, 1f, Difficulty);
             walker.SetWalkDirection(Vector3.right);
             walker.PopIn();
             spawnedNPCs.Add(walker);
@@ -312,6 +334,64 @@ public abstract class WarioStage : MonoBehaviour
         }
         return best;
     }
+
+    // ---- Heads-up (shown over the first moment of the minigame, which is already running) ----
+
+    // Where the trap hits (world X of its center, and half its width). By default the trap's aim with
+    // a typical width; stages with an exact hit area override it. Stages without a trap return false.
+    public virtual bool TryGetTrapZone(out float centerX, out float halfWidth)
+    {
+        halfWidth = 0.4f;
+        return TryGetTrapAim(out centerX, out _);
+    }
+
+    // The one word on the action card right before the minigame (WarioWare style)
+    public virtual string ActionVerb => "GO!";
+
+    // Trap stages show the HIT ZONE (a pulsing column between two cones; the cones stay for the whole
+    // round). Nothing waits for it: the monitos walk from the first frame.
+    public IEnumerator HeadsUp(float seconds, Sprite cone)
+    {
+        if (seconds <= 0f) yield break;
+        Vector2 origin = transform.position;
+        List<GameObject> temporary = new List<GameObject>();
+        if (!TryGetTrapZone(out float centerX, out float halfWidth)) yield break;
+        Rect phone = RenderCameraFollow.Instance != null ? RenderCameraFollow.Instance.GetPhoneVisibleWorldRect(transform.position.z) : view;
+
+        // In front of the set (translucent, so the monitos still show through)
+        float x = centerX - origin.x, feet = NPCFeetY() - origin.y, head = NPCHeadY() - origin.y;
+        float top = head + 0.3f, height = top - feet;
+        SpriteRenderer column = StageBuilder.Box(transform, "Hit Zone", x, (feet + top) / 2f, halfWidth * 2f, height, Color.clear, 40);
+        temporary.Add(column.gameObject);
+        // Edges: a yellow line with a dark border, readable on any set
+        foreach (int side in new[] { -1, 1 })
+        {
+            temporary.Add(StageBuilder.Box(transform, "Hit Zone Edge", x + side * halfWidth, (feet + top) / 2f, 0.09f, height, new Color(0f, 0f, 0f, 0.8f), 41).gameObject);
+            temporary.Add(StageBuilder.Box(transform, "Hit Zone Edge", x + side * halfWidth, (feet + top) / 2f, 0.04f, height, HeadsUpYellow, 42).gameObject);
+        }
+
+        // The label on a dark tag, never off the phone (the bezel covers its very edges)
+        float labelX = Mathf.Clamp(x, phone.xMin - origin.x + 1.3f, phone.xMax - origin.x - 1.3f), labelY = top + 0.35f;
+        temporary.Add(StageBuilder.Box(transform, "Hit Zone Tag", labelX, labelY, 1.55f, 0.4f, new Color(0f, 0f, 0f, 0.8f), 41).gameObject);
+        TextMeshPro label = StageBuilder.WorldText(transform, "HIT ZONE", labelX, labelY, 1.45f, 0.3f, HeadsUpYellow, 42);
+        label.fontStyle = FontStyles.Bold;
+        temporary.Add(label.gameObject);
+        if (cone != null)
+            foreach (int side in new[] { -1, 1 })
+            {
+                SpriteRenderer c = StageBuilder.SpriteAt(transform, "Hit Zone Cone", cone, x + side * (halfWidth + 0.12f), feet + 0.18f, 1.2f, Color.white, 5);
+                c.transform.localPosition = new Vector3(c.transform.localPosition.x, feet + c.bounds.extents.y - 0.05f, 0f);
+            }
+
+        for (float t = 0f; t < seconds; t += Time.deltaTime)
+        {
+            column.color = new Color(1f, 0.85f, 0.2f, 0.18f + 0.14f * Mathf.Sin(t * 12f));
+            yield return null;
+        }
+        foreach (GameObject go in temporary) if (go != null) Destroy(go);
+    }
+
+    private static readonly Color HeadsUpYellow = new Color(1f, 0.85f, 0.2f);
 
     // The trap hit a monito
     public void OnTrapHitNPC(NPCWalker npc)

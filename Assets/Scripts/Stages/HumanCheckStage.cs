@@ -50,6 +50,7 @@ public class HumanCheckStage : DroneCamStage
     private NPCWalker target;
 
     public override WalkTheme Theme => WalkTheme.Crosswalk;
+    public override string ActionVerb => "VERIFY!";
     protected override Color HudColor => new Color(1f, 1f, 1f, 0.9f);
     protected override string CamLabel => "STRIKE // " + AssignedDrone.Tag;
     protected override bool HasCrosshair => false;
@@ -159,7 +160,7 @@ public class HumanCheckStage : DroneCamStage
         {
             Vector2 p = (Vector2)target.BodyRect.center - (Vector2)transform.position + Random.insideUnitCircle * 0.12f;
             crosshair.transform.localPosition = p;
-            SoundFX.Play(Sfx.DroneShot, 0.7f);
+            SoundFX.PlaySingle(Sfx.DroneShot, 0.7f); // the volley is already a burst
             SpriteRenderer flash = SpriteAt(transform, "Shot Flash", GameSprites.SoftCircle(), p.x, p.y, 0.35f, new Color(1f, 1f, 0.8f, 0.9f), 40);
             Destroy(flash.gameObject, 0.05f);
             yield return new WaitForSeconds(0.08f);

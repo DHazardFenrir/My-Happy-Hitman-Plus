@@ -59,11 +59,13 @@ public abstract class DroneCamStage : WarioStage
     protected virtual void BuildOverlay() { }
     // Stages that don't aim and shoot by hand (the signal scan) go without the crosshair
     protected virtual bool HasCrosshair => true;
+    public override string ActionVerb => "SHOOT!";
     protected virtual void OnAimMoved(Vector2 localAim) { }
 
     public override void SetupStage(NPCAppearance.ClothingPart target)
     {
-        extraNPCsCount = crowdSize - 1;
+        // A smaller crowd at the start of the run (60%), the full one at the target score
+        extraNPCsCount = Mathf.RoundToInt(Mathf.Lerp(Mathf.Max(3f, crowdSize * 0.6f), crowdSize, Difficulty)) - 1;
         base.SetupStage(target); // focuses the camera and spawns the monitos (in a row, rearranged below)
 
         Vector2 origin = transform.position;
@@ -287,7 +289,9 @@ public abstract class DroneCamStage : WarioStage
             rowOf[npc] = row;
 
             // Everybody walks (the walk animation always plays, so standing still looks wrong)
-            npc.moveSpeed = npc.isTarget ? Random.Range(strollSpeed.x, strollSpeed.y) : Random.Range(passerbySpeed.x, passerbySpeed.y);
+            // (passers-by start slower, so the target is easier to keep apart)
+            npc.moveSpeed = npc.isTarget ? Random.Range(strollSpeed.x, strollSpeed.y)
+                : Random.Range(passerbySpeed.x, passerbySpeed.y) * Mathf.Lerp(0.7f, 1f, Difficulty);
         }
     }
 
@@ -338,7 +342,12 @@ public abstract class DroneCamStage : WarioStage
         // faint interference band that keeps rolling up the screen
         Rect fv = fullView;
         if (FilterTint.a > 0f) Box(hud, "Camera Tint", fv.center.x, fv.center.y, fv.width + 1f, fv.height + 1f, FilterTint, 26);
-        Tiled(hud, "Scanlines", GameSprites.Scanlines(), fv.center.x, fv.center.y, fv.width + 1f, fv.height + 1f, 27);
+        // The scanline tile is 1 px wide: repeat it only downward and stretch it sideways (tiling it
+        // across too means hundreds of thousands of tiles, more than a sprite can draw)
+        SpriteRenderer scanlines = Tiled(hud, "Scanlines", GameSprites.Scanlines(), fv.center.x, fv.center.y, 1f, fv.height + 1f, 27);
+        float tileWidth = GameSprites.Scanlines().bounds.size.x;
+        scanlines.size = new Vector2(tileWidth, fv.height + 1f);
+        scanlines.transform.localScale = new Vector3((fv.width + 1f) / tileWidth, 1f, 1f);
         SpriteRenderer vignette = SpriteAt(hud, "Vignette", GameSprites.CameraVignette(), visible.center.x, visible.center.y, 1f, Color.white, 28);
         vignette.transform.localScale = new Vector3(visible.width, visible.height, 1f);
         interference = Box(hud, "Interference", fv.center.x, fv.center.y, fv.width + 1f, 0.22f, new Color(1f, 1f, 1f, 0.06f), 28).transform;

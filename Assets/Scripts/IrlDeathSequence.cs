@@ -93,6 +93,7 @@ public class IrlDeathSequence : MonoBehaviour
         flash.color = Color.white;
         crack.texture = ProceduralTextures.ScreenCrack(new Vector2(Random.Range(0.35f, 0.65f), Random.Range(0.35f, 0.65f)), Random.Range(0, 9999));
         crack.gameObject.SetActive(true);
+        SoundFX.Play(Sfx.PhoneCrack); // the phone's screen cracks in every death
         blood.texture = GameSprites.BloodSplash(Random.Range(0, GameSprites.BloodSplashCount))?.texture;
         blood.rectTransform.anchoredPosition = new Vector2(Random.Range(-200f, 200f), Random.Range(-80f, 120f));
         blood.rectTransform.localRotation = Quaternion.Euler(0f, 0f, Random.Range(-20f, 20f));

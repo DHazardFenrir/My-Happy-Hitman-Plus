@@ -14,6 +14,7 @@ public class LightTrafficStage : WarioStage
     private bool trapTriggered = false;
 
     public override WalkTheme Theme => WalkTheme.Crosswalk;
+    public override string ActionVerb => "GREEN LIGHT!";
     public override IrlDeathKind IrlDeath => IrlDeathKind.HitByCar;
     public override Sprite IrlThreatSprite => car != null && car.TryGetComponent(out SpriteRenderer sr) ? sr.sprite : null;
 
@@ -68,6 +69,13 @@ public class LightTrafficStage : WarioStage
         worldX = b.center.x;
         delay = Mathf.Max(0f, (NPCFeetY() - b.max.y) / car.speed);
         return true;
+    }
+
+    public override bool TryGetTrapZone(out float centerX, out float halfWidth)
+    {
+        bool ok = TryGetTrapAim(out centerX, out _);
+        halfWidth = ok ? car.HitHalfWidth : 0f;
+        return ok;
     }
 
     public void OnCarHitNPC(NPCWalker npc) => OnTrapHitNPC(npc);

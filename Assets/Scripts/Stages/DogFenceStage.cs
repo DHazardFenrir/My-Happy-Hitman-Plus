@@ -41,6 +41,7 @@ public class DogFenceStage : WarioStage
     private float[] nextBark, hopPhase;
 
     public override WalkTheme Theme => WalkTheme.Street;
+    public override string ActionVerb => "RELEASE!";
     public override IrlDeathKind IrlDeath => IrlDeathKind.MauledByDogs;
     public override Sprite IrlThreatSprite => GameSprites.Dog(0);
 
@@ -240,5 +241,11 @@ public class DogFenceStage : WarioStage
         worldX = transform.TransformPoint(new Vector3(gateCenterX, 0f, 0f)).x;
         delay = gateRiseTime;
         return true;
+    }
+
+    public override bool TryGetTrapZone(out float centerX, out float halfWidth)
+    {
+        halfWidth = biteZoneWidth / 2f;
+        return TryGetTrapAim(out centerX, out _);
     }
 }

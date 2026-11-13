@@ -11,6 +11,8 @@ public class CarTrap : MonoBehaviour
     private Collider2D carCollider;
 
     public Bounds Bounds => carCollider != null ? carCollider.bounds : new Bounds(transform.position, Vector3.one);
+    // Half of the part of the car's width that counts as a hit
+    public float HitHalfWidth => Bounds.extents.x * hitWidth;
 
     private void Awake()
     {

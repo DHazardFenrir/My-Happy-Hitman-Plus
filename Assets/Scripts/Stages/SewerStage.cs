@@ -8,6 +8,7 @@ public class SewerStage : WarioStage
     private bool trapTriggered = false;
 
     public override WalkTheme Theme => WalkTheme.Sewer;
+    public override string ActionVerb => "OPEN!";
     public override IrlDeathKind IrlDeath => IrlDeathKind.Fall;
 
     protected override void OnStageUpdate()
@@ -39,6 +40,13 @@ public class SewerStage : WarioStage
         if (sewerTrap == null) return false;
         worldX = sewerTrap.Zone.center.x;
         return true;
+    }
+
+    public override bool TryGetTrapZone(out float centerX, out float halfWidth)
+    {
+        bool ok = TryGetTrapAim(out centerX, out _);
+        halfWidth = ok ? sewerTrap.HitHalfWidth : 0f;
+        return ok;
     }
 
     public void OnNPCFellInSewer(NPCWalker targetNpc) => OnTrapHitNPC(targetNpc);

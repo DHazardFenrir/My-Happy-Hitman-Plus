@@ -53,6 +53,7 @@ public class GameUI : MonoBehaviour
         if (overlayParent == null) overlayParent = BuildFallbackCanvas().transform;
 
         BuildTargetCard(overlayParent);
+        BuildActionCard(overlayParent);
         BuildDroneCard(overlayParent);
         BuildLoadingCard(overlayParent);
         BuildResultCard(overlayParent);
@@ -429,6 +430,51 @@ public class GameUI : MonoBehaviour
         targetCard.gameObject.SetActive(false);
     }
 
+    // ---------------- ACTION CARD ----------------
+    // WarioWare-style: one big verb right before the minigame (SHOOT!, DROP!, MASH!...). It slams in,
+    // shakes a little and is gone: what to do, in one word, while your eyes are still free.
+
+    private RectTransform actionCard;
+    private TextMeshProUGUI actionVerb;
+
+    private void BuildActionCard(Transform parent)
+    {
+        GameObject card = CreatePanel(parent, "Action Card (runtime)", new Color(0.85f, 0.12f, 0.15f, 1f));
+        actionCard = card.GetComponent<RectTransform>();
+        MatchVisibleScreen(actionCard);
+
+        GameObject frame = new GameObject("Frame", typeof(RectTransform));
+        frame.transform.SetParent(card.transform, false);
+        AnchorBox(frame.GetComponent<RectTransform>(), new Vector2(0.05f, 0.3f), new Vector2(0.95f, 0.7f));
+        CreateBorderLines(frame.transform, Color.white, 4f);
+
+        actionVerb = CreateTargetLine(card.transform, "Verb", "SHOOT!", 0.36f, 0.64f, 90f);
+        actionVerb.outlineWidth = 0.35f;
+        card.SetActive(false);
+    }
+
+    public IEnumerator ShowActionCard(string verb, float duration)
+    {
+        if (string.IsNullOrEmpty(verb) || duration <= 0f) yield break;
+        actionVerb.text = verb;
+        SoundFX.Play(Sfx.MenuSelect, 1.2f);
+        actionCard.SetAsLastSibling();
+        actionCard.gameObject.SetActive(true);
+
+        RectTransform rt = actionVerb.rectTransform;
+        float tilt = UnityEngine.Random.value < 0.5f ? -6f : 6f;
+        for (float t = 0f; t < duration; t += Time.deltaTime)
+        {
+            // Slams in big and tilted, settles, then trembles
+            float k = Mathf.Clamp01(t / 0.12f);
+            float shake = t > 0.12f ? Mathf.Sin(t * 60f) * 1.5f : 0f;
+            rt.localScale = Vector3.one * Mathf.Lerp(2.2f, 1f, k * k);
+            rt.localRotation = Quaternion.Euler(0f, 0f, Mathf.Lerp(tilt * 2f, tilt * 0.4f, k) + shake);
+            yield return null;
+        }
+        actionCard.gameObject.SetActive(false);
+    }
+
     // ---------------- LOADING CARD ----------------
     // "Preparing..." card with an icon and a progress bar that fills up (the RC car minigame uses it
     // to get you ready and remind the controls before the road shows up)
@@ -580,6 +626,9 @@ public class GameUI : MonoBehaviour
                 SoundFX.Play(Sfx.FingerTap);
                 fingerFill.rectTransform.localScale = Vector3.one * 1.04f;
             }
+            // Full = done right away (draining that same frame used to leave it at 99.9%: it looked
+            // complete but failed when the time ran out)
+            if (progress >= 1f - 0.001f) { progress = 1f; break; }
             progress = Mathf.Max(0f, progress - 0.12f * Time.deltaTime); // stop tapping and it drains
             fingerFill.fillAmount = progress;
             fingerFill.rectTransform.localScale = Vector3.Lerp(fingerFill.rectTransform.localScale, Vector3.one, 12f * Time.deltaTime);
@@ -588,7 +637,7 @@ public class GameUI : MonoBehaviour
         }
 
         FingerprintPassed = progress >= 1f;
-        fingerFill.fillAmount = 1f;
+        fingerFill.fillAmount = FingerprintPassed ? 1f : progress; // a fail shows how far you got
         fingerFill.color = FingerprintPassed ? new Color(0.15f, 0.7f, 0.35f) : new Color(0.9f, 0.2f, 0.2f);
         fingerStatus.text = FingerprintPassed ? "IDENTITY CONFIRMED" : "AUTHENTICATION FAILED";
         fingerStatus.color = fingerFill.color;

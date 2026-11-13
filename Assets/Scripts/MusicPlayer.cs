@@ -5,6 +5,8 @@ using UnityEngine;
 //  - Crossfade: happy fades out while terror fades in, between terrorStartScore and terrorFullScore.
 //  - Layer: happy keeps playing and terror is mixed in on top, getting louder with the score.
 // Both tracks play all the time (looping) and only their volumes change, so switching never restarts them.
+// They also always play at the same speed: a different speed would drift them apart (you hear it in the
+// drums during a crossfade). The slower terror speed applies to BOTH, only once terror is all you hear.
 public class MusicPlayer : MonoBehaviour
 {
     public enum BlendMode { Crossfade, Layer }
@@ -15,6 +17,7 @@ public class MusicPlayer : MonoBehaviour
     private float happyTarget = 1f, terrorTarget;
     private float masterVolume = 0.6f;
     private float fadeSpeed = 0.5f;
+    private float terrorSpeed = 1f;
     private float currentFadeSpeed = 0.5f; // this fade's speed (a slower one after the credits)
     private BlendMode mode;
     private int startScore, fullScore;
@@ -22,7 +25,7 @@ public class MusicPlayer : MonoBehaviour
     // The mix changes in steps of this many points (200 = 100/0, 80/20, 60/40... every two wins). 0 = smooth
     public int StepScore { get; set; }
 
-    // terrorSpeed: the terror track plays at this fixed speed (below 1 = slower and lower, heavier)
+    // terrorSpeed: once only terror is playing, both tracks slow down to this speed (below 1 = slower and lower, heavier)
     public void Setup(AudioClip happyClip, AudioClip terrorClip, float volume, BlendMode blend, int terrorStartScore, int terrorFullScore, float fadeSeconds, float terrorSpeed = 1f)
     {
         Instance = this;
@@ -32,12 +35,15 @@ public class MusicPlayer : MonoBehaviour
         fullScore = Mathf.Max(terrorStartScore + 1, terrorFullScore);
         fadeSpeed = 1f / Mathf.Max(0.05f, fadeSeconds);
 
+        this.terrorSpeed = terrorSpeed;
+
         happy = NewSource(happyClip);
         terror = NewSource(terrorClip);
-        terror.pitch = terrorSpeed; // set once: it never changes during the game
         SetIntensity(0f, instant: true);
-        if (happy.clip != null) happy.Play();
-        if (terror.clip != null) terror.Play();
+        // Started on the same audio sample, so the beats line up
+        double start = AudioSettings.dspTime + 0.1;
+        if (happy.clip != null) happy.PlayScheduled(start);
+        if (terror.clip != null) terror.PlayScheduled(start);
     }
 
     private AudioSource NewSource(AudioClip clip)
@@ -86,5 +92,9 @@ public class MusicPlayer : MonoBehaviour
         float step = currentFadeSpeed * Time.deltaTime;
         happy.volume = Mathf.MoveTowards(happy.volume, happyTarget * masterVolume, step);
         terror.volume = Mathf.MoveTowards(terror.volume, terrorTarget * masterVolume, step);
+
+        // Slow down only when the happy track is gone (and back to normal before it returns)
+        float pitch = terrorTarget >= 0.999f && happyTarget <= 0.001f ? terrorSpeed : 1f;
+        happy.pitch = terror.pitch = Mathf.MoveTowards(happy.pitch, pitch, 0.2f * Time.deltaTime);
     }
 }

@@ -237,6 +237,6 @@ MonoBehaviour:
   dwellSeconds: {x: 0.85, y: 0.55}
   liveFromScore: 600
   decoys: {x: 3, y: 5}
-  requiredShare: 0.2
+  requiredShare: 0.35
   personHeightInSquares: 1.45
   groundLine: {fileID: 1499533231604115924}

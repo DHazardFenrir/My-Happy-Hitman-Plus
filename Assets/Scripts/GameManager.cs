@@ -23,10 +23,16 @@ public class GameManager : MonoBehaviour
     [Header("Rules")]
     public int targetScore = 1000;
     public int pointsPerWin = 100;
-    public float objectiveCardTime = 2f;
+    public float objectiveCardTime = 2.75f;
     public float resultCardTime = 1.6f;
     [Tooltip("How long the assigned / destroyed / certified drone card stays")]
     public float droneCardTime = 2.2f;
+    [Tooltip("Seconds the one-word action card (SHOOT!, DROP!...) shows right before each minigame")]
+    public float actionCardTime = 0.8f;
+    [Tooltip("Seconds the HIT ZONE shows at the start of the trap minigames, while they already play")]
+    public float headsUpSeconds = 1.2f;
+    [Tooltip("Cone that marks the edges of the HIT ZONE (tripleT/misc/cone)")]
+    public Sprite hitZoneCone;
     [Tooltip("Time to see the hit before the result card")]
     public float afterActionDelay = 0.7f;
 
@@ -169,6 +175,7 @@ public class GameManager : MonoBehaviour
             if (cardPanel != null) cardPanel.SetActive(false); // The old card in the scene is no longer used
             yield return ui.ShowTargetCard(target, objectiveCardTime);
             yield return stagePrefab.BeforeStage(ui, target); // e.g. "preparing the RC car"
+            yield return ui.ShowActionCard(stagePrefab.ActionVerb, actionCardTime); // SHOOT! / DROP! ...
 
             // 2. Now the minigame is instantiated
             WarioStage currentStage = Instantiate(stagePrefab);
@@ -180,6 +187,7 @@ public class GameManager : MonoBehaviour
 
             TrailerCapture.Log($"stage {stagePrefab.GetType().Name}");
             currentStage.StartStage();
+            currentStage.StartCoroutine(currentStage.HeadsUp(headsUpSeconds, hitZoneCone)); // over the running minigame
             yield return new WaitUntil(() => currentStage.isFinished);
 
             // 3. Result: GOOD JOB or FAILED. Failing just moves on to the next minigame.
@@ -232,10 +240,15 @@ public class GameManager : MonoBehaviour
             SetGameScreenVisible(false);
             Destroy(currentStage.gameObject);
 
-            string subtitle = success ? $"+{pointsPerWin}   {score} / {targetScore}" : "NEXT TARGET...";
-            TrailerCapture.Log("resultcard");
-            SoundFX.Play(success ? Sfx.Success : Sfx.Fail);
-            yield return ui.ShowResultCard(success, subtitle, resultCardTime);
+            // After a confirmed fingerprint the FAILED sign would read as if the print failed: the
+            // fingerprint card already said how it went, so it's skipped
+            if (!savedByFingerprint)
+            {
+                string subtitle = success ? $"+{pointsPerWin}   {score} / {targetScore}" : "NEXT TARGET...";
+                TrailerCapture.Log("resultcard");
+                SoundFX.Play(success ? Sfx.Success : Sfx.Fail);
+                yield return ui.ShowResultCard(success, subtitle, resultCardTime);
+            }
 
             // Failing a lot: retro ad, longer each time (5 fails = 3 s, 10 = 5 s, ...)
             if (!success && adEveryFails > 0 && failCount % adEveryFails == 0)

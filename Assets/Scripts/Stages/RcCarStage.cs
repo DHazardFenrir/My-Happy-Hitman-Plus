@@ -94,6 +94,7 @@ public class RcCarStage : WarioStage
 
     public override IrlDeathKind IrlDeath => IrlDeathKind.HitByCar;
     public override WalkTheme Theme => WalkTheme.Street;
+    public override string ActionVerb => "RAM!";
 
 
     // ---------------- Card ----------------

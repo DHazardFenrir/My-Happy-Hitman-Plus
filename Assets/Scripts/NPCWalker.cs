@@ -203,6 +203,7 @@ public class NPCWalker : MonoBehaviour
         if (IsDead) return;
         IsDead = true;
         IsPopping = false;
+        SoundFX.Play(Sfx.Scream);
         StopAllCoroutines();
 
         if (bleedOnDeath)

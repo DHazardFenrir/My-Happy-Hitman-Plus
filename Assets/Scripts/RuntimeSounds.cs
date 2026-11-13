@@ -14,7 +14,8 @@ public enum Sfx
     CarHorn, GlassBreak, Explosion,
     TargetAlert,
     DogBark, DogBite, GateOpen,
-    ScanPing, ScanLock, FingerTap, FingerOk
+    ScanPing, ScanLock, FingerTap, FingerOk,
+    Scream, PhoneCrack // recorded only (Assets/Resources/Sounds): silent without their files
 }
 
 // Retro sound effects generated in code, with the same synth bfxr/sfxr use

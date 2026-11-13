@@ -58,6 +58,8 @@ public class SewerTrap : MonoBehaviour
     }
 
     public Bounds Zone => GrateBounds();
+    // Half of the part of the grate a monito must be over to fall
+    public float HitHalfWidth => GrateBounds().extents.x * grateWidth;
 
     private Bounds GrateBounds()
     {

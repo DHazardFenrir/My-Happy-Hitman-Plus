@@ -456,7 +456,7 @@ MonoBehaviour:
   - {fileID: 8872866404524839473, guid: f8467e64adb4d48bca02a62e1bfa0dce, type: 3}
   targetScore: 1500
   pointsPerWin: 100
-  objectiveCardTime: 2
+  objectiveCardTime: 2.75
   resultCardTime: 1.2
   droneCardTime: 2.2
   afterActionDelay: 0.6
@@ -476,6 +476,8 @@ MonoBehaviour:
   musicFadeSeconds: 2.5
   musicReturnSeconds: 10
   terrorMusicSpeed: 0.9
+  headsUpSeconds: 1.2
+  hitZoneCone: {fileID: 7863867589095094433, guid: 17854d09b91de457e866762bb5a29f76, type: 3}
   endingBackdrop: {fileID: 0}
 --- !u!4 &364674730
 Transform:
