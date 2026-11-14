@@ -47,8 +47,7 @@ public class DogFenceStage : WarioStage
 
     public override void SetupStage(NPCAppearance.ClothingPart target)
     {
-        base.SetupStage(target);
-        LineUpBeforeTheZone();
+        base.SetupStage(target); // spawns the row before the bite zone (WarioStage.LineUpBeforeTrap)
         home = new Vector3[dogs.Length];
         nextBark = new float[dogs.Length];
         hopPhase = new float[dogs.Length];
@@ -59,27 +58,6 @@ public class DogFenceStage : WarioStage
             hopPhase[i] = Random.value * 10f;
         }
         SetFenceState(locked: true);
-    }
-
-    // The kennel is near the middle of the screen, so the usual row of monitos could start already on
-    // (or past) the danger zone. Here they start packed closer together, all of them before the zone,
-    // so there's always time to see the target coming. Their order stays random.
-    private void LineUpBeforeTheZone()
-    {
-        List<NPCWalker> row = spawnedNPCs.FindAll(n => n != null);
-        if (row.Count == 0) return;
-        row.Sort((a, b) => a.transform.position.x.CompareTo(b.transform.position.x));
-
-        float zoneLeft = transform.TransformPoint(new Vector3(gateCenterX - biteZoneWidth / 2f, 0f, 0f)).x;
-        float start = view.xMin + screenMargin;
-        float end = zoneLeft - 0.35f;
-        float spacing = row.Count > 1 ? Mathf.Min(0.7f, Mathf.Max(0.3f, (end - start) / (row.Count - 1))) : 0f;
-        for (int i = 0; i < row.Count; i++)
-        {
-            Vector3 p = row[i].transform.position;
-            p.x = start + i * spacing;
-            row[i].transform.position = p;
-        }
     }
 
     protected override void OnStageUpdate()

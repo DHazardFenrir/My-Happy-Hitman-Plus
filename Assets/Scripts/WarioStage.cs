@@ -38,6 +38,9 @@ public abstract class WarioStage : MonoBehaviour
     [Tooltip("Margin from the edge of the phone screen where monitos pop in/out")]
     public float screenMargin = 0.35f;
 
+    [Tooltip("Seconds of walking the target always has before it reaches the trap's hit zone (time to spot it)")]
+    public float targetLeadSeconds = 1.6f;
+
     [Tooltip("Seconds the trap has to hit someone after it is triggered. If it hits nobody, the minigame is failed.")]
     public float trapResolveTime = 2.5f;
 
@@ -159,6 +162,44 @@ public abstract class WarioStage : MonoBehaviour
             SpawnNPC(slots[i + 1], extraNPCPool[randDistractor], false);
             extraNPCPool.RemoveAt(randDistractor);
         }
+        LineUpBeforeTrap();
+    }
+
+    // Playtest: the target sometimes appeared already at the end of the hit zone. The whole row now
+    // starts before the zone (sliding left, even off screen, if it doesn't fit: the round lasts a bit
+    // longer instead), and the target always gets targetLeadSeconds of walking before reaching it.
+    private void LineUpBeforeTrap()
+    {
+        if (!TryGetTrapZone(out float trapX, out float halfWidth)) return;
+        List<NPCWalker> row = spawnedNPCs.FindAll(n => n != null);
+        if (row.Count == 0) return;
+        row.Sort((a, b) => a.transform.position.x.CompareTo(b.transform.position.x));
+
+        float zoneLeft = trapX - halfWidth;
+        float speed = row[0].moveSpeed;
+        float end = zoneLeft - speed * 0.5f;
+        if (row[row.Count - 1].transform.position.x > end)
+        {
+            float start = view.xMin + screenMargin;
+            float spacing = row.Count > 1 ? Mathf.Clamp((end - start) / (row.Count - 1), 0.45f, 0.7f) : 0f;
+            for (int i = 0; i < row.Count; i++)
+                SetX(row[i], end - (row.Count - 1 - i) * spacing);
+        }
+
+        NPCWalker target = row.Find(n => n.isTarget);
+        if (target != null && target != row[0] && zoneLeft - target.transform.position.x < speed * targetLeadSeconds)
+        {
+            float x = target.transform.position.x;
+            SetX(target, row[0].transform.position.x);
+            SetX(row[0], x);
+        }
+    }
+
+    private static void SetX(NPCWalker npc, float x)
+    {
+        Vector3 p = npc.transform.position;
+        p.x = x;
+        npc.transform.position = p;
     }
 
     private int FarthestFromTrap(List<Vector3> slots)
