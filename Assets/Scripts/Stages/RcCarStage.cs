@@ -343,6 +343,12 @@ public class RcCarStage : WarioStage
             float g = (p.y - car.halfSize.y) - (o.y + other.halfSize.y);
             if (g < gap) { gap = g; front = other; }
         }
+        // After the ram the RC car stops ramming, so the traffic behind it stops instead of driving over it
+        if (hit && p.y > playerY && Mathf.Abs(playerX - p.x) < playerHalfSize.x + car.halfSize.x)
+        {
+            float g = (p.y - car.halfSize.y) - (playerY + playerHalfSize.y);
+            if (g > -0.05f && g < safeGap && g < gap) return 0f;
+        }
         if (front == null || gap > safeGap) return car.speed;
         // Too close: match the speed of the car in front, a bit slower if it's really close
         return Mathf.Min(car.speed, front.currentSpeed * (gap < safeGap * 0.5f ? 0.85f : 1f));
