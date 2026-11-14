@@ -442,19 +442,11 @@ MonoBehaviour:
   gameScreen: {fileID: 0}
   uiFont: {fileID: 0}
   minigamePrefabs:
-  - {fileID: 3503392877923181911, guid: 2a0f411c169c64e788217f4c2a25e3d7, type: 3}
-  - {fileID: 5762929348796299152, guid: f7d93bdeaea164036b58d636be8fcdd9, type: 3}
   - {fileID: 7413928905609210104, guid: 435a5338258d7493c9a788cd4d1bb4a8, type: 3}
-  - {fileID: 691407978759423132, guid: 56ae9b313821d47c18d7493298a76bd7, type: 3}
   - {fileID: 2821990128055853688, guid: 9cdaf318320c24890929ad2f1118e008, type: 3}
-  - {fileID: 7498280430869214498, guid: 71e06badd2a7f4d20ba9523e77bba73a, type: 3}
   - {fileID: 8121322339157688013, guid: 1d04c71db2b94418d90536d021adec85, type: 3}
-  - {fileID: 7546249915196372978, guid: 1f848031ed7d54b168a9007992b6abed, type: 3}
-  - {fileID: 413493500641818031, guid: 1d8deba3b339f4bb0ab1a8cb39edba49, type: 3}
-  - {fileID: 5294296150472816926, guid: 57e699bcab5884da08c9a2140dcd103a, type: 3}
   - {fileID: 3625920302217247983, guid: 1297b0becb852479c8014af830fbe248, type: 3}
-  - {fileID: 8872866404524839473, guid: f8467e64adb4d48bca02a62e1bfa0dce, type: 3}
-  targetScore: 1500
+  targetScore: 800
   pointsPerWin: 100
   objectiveCardTime: 2.75
   resultCardTime: 1.2
@@ -471,7 +463,7 @@ MonoBehaviour:
   musicVolume: 1
   musicBlend: 0
   terrorStartScore: 0
-  terrorFullScore: 1000
+  terrorFullScore: 600
   musicStepScore: 200
   musicFadeSeconds: 2.5
   musicReturnSeconds: 10
