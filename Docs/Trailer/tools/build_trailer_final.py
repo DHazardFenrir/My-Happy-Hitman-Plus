@@ -282,7 +282,7 @@ def end_card(seconds):
     text_center(d, 500, "THE CAMPAIGN IS OVER.", IMPACT(80), INK)
     text_center(d, 590, "THE TRAINING IS NOT.", IMPACT(80), RED)
     d.rectangle((90, 1660, W - 90, 1760), fill=RED)
-    text_center(d, 1710, "FREE DEMO  •  NOVEMBER 15  •  ITCH.IO", PLATE(36), PAPER)
+    text_center(d, 1710, "OUT NOVEMBER 15  •  ITCH.IO", PLATE(36), PAPER)
     for t in range(n):
         img = bg.copy()
         marchers(img, t, [(4, 1430, 150, 9, 0.35)])
@@ -298,7 +298,11 @@ def end_card(seconds):
 # ---------------- timeline ----------------
 irl_start = first_event("capB", "irl start")
 irl_end = first_event("capB", "irl end", irl_start)
-last_fail = [fr for fr, ev in read_events("capB") if ev.startswith("result ") and fr < irl_start][-1]
+fails = [fr for fr, ev in read_events("capB") if ev.startswith("result ") and fr < irl_start]
+last_fail = fails[-1]
+# The fail shown is the one before: in the last one (the RC car) traffic drove over the rammed car,
+# a game bug fixed after recording (RcCarStage.FollowingSpeed)
+shown_fail = fails[-2] if len(fails) > 1 else last_fail
 fingerprint = first_event("capB", "fingerprint", last_fail)
 irl_impact = first_event("capB", "irl impact", irl_start)
 end_start = first_event("capA", "ending start")
@@ -333,7 +337,7 @@ for idx, (stage, verb, tagline, pre) in enumerate(MISSIONS):
 
 segments.append(("hesitate", card(["HESITATION", "IS A", "THREAT."], 1.6, [RED, INK, RED]), "silent", [(0, "_hit", None)]))
 # Fail -> fingerprint (start and the failed end) -> THREAT ALERT -> the car -> FAILED JOB
-irl_ranges = [(last_fail - 18, fingerprint, "FAIL TOO OFTEN..."),
+irl_ranges = [(shown_fail - 18, shown_fail + 20, "FAIL TOO OFTEN..."),
               (fingerprint + 14, fingerprint + 70, "...AND THE SYSTEM CHECKS WHO YOU ARE."),
               (irl_start - 38, irl_start + 14, "AUTHENTICATION FAILED."),
               (irl_start + 14, irl_impact + 18, "YOU ARE THE THREAT NOW."),

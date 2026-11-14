@@ -39,8 +39,10 @@ def cctv_frame(img, t, label="CAM 04  //  TRAINING DIVISION"):
 def text_card(folder, lines, seconds, color=GREEN, typing=True, size=96, sub=None):
     """Monospace text typed out over a CCTV frame. lines: list of strings."""
     os.makedirs(folder, exist_ok=True)
+    # Courier is ~0.6 em wide: shrink lines that wouldn't fit (vertical video)
+    size = min(size, int((W - 120) / (0.6 * max(len(l) for l in lines))))
     f = font("Courier New Bold.ttf", size)
-    fsub = font("Courier New Bold.ttf", 44)
+    fsub = font("Courier New Bold.ttf", min(44, int((W - 120) / (0.6 * max(1, len(sub or ""))))))
     total_chars = sum(len(l) for l in lines)
     n = int(seconds * FPS)
     for i in range(n):
@@ -71,27 +73,47 @@ def logo_card(folder, seconds, tagline, footer_lines):
     big = font("Impact.ttf", 300)
     tag = font("Courier New Bold.ttf", 52)
     foot = font("Courier New Bold.ttf", 40)
+    vertical = H > W
+    if vertical:
+        # The tagline goes on two lines (split at the sentence break), the footer shrinks to fit
+        cut = tagline.find(". ") + 1 or len(tagline) // 2
+        tag_lines = [tagline[:cut].strip(), tagline[cut:].strip()]
+        tag = font("Courier New Bold.ttf", min(52, int((W - 120) / (0.6 * max(len(l) for l in tag_lines)))))
+        foot = font("Courier New Bold.ttf", min(40, int((W - 120) / (0.6 * max(len(l) for l in footer_lines)))))
     n = int(seconds * FPS)
     for i in range(n):
         t = i / FPS
         img = Image.new("RGB", (W, H), (8, 6, 12))
         layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
         d = ImageDraw.Draw(layer)
-        wa, wb, gap = d.textlength("AGENT", font=big), d.textlength("TR8N1", font=big), 70
-        x0 = (W - (wa + gap + wb)) / 2
-        d.text((x0, 400), "AGENT", font=big, fill=RED, anchor="lm")
-        d.text((x0 + wa + gap, 400), "TR8N1", font=big, fill=YELLOW, anchor="lm")
+        if vertical:
+            # Stacked: AGENT over TR8N1
+            d.text((W / 2, 620), "AGENT", font=big, fill=RED, anchor="mm")
+            d.text((W / 2, 900), "TR8N1", font=big, fill=YELLOW, anchor="mm")
+        else:
+            wa, wb, gap = d.textlength("AGENT", font=big), d.textlength("TR8N1", font=big), 70
+            x0 = (W - (wa + gap + wb)) / 2
+            d.text((x0, 400), "AGENT", font=big, fill=RED, anchor="lm")
+            d.text((x0 + wa + gap, 400), "TR8N1", font=big, fill=YELLOW, anchor="lm")
         k = min(1.0, t / 0.25)
         scale = 1.6 - 0.6 * (1 - (1 - k) ** 3)
         lw, lh = int(W * scale), int(H * scale)
         scaled = layer.resize((lw, lh), Image.LANCZOS)
         img.paste(scaled, ((W - lw) // 2, (H - lh) // 2), scaled)
         d2 = ImageDraw.Draw(img)
-        if t > 0.6:
-            d2.text((W / 2, 620), tagline, font=tag, fill=WHITE, anchor="mm")
-        if t > 1.3:
-            for j, line in enumerate(footer_lines):
-                d2.text((W / 2, 800 + j * 62), line, font=foot, fill=GREEN if j == 0 else (170, 170, 170), anchor="mm")
+        if vertical:
+            if t > 0.6:
+                for j, line in enumerate(tag_lines):
+                    d2.text((W / 2, 1150 + j * 66), line, font=tag, fill=WHITE, anchor="mm")
+            if t > 1.3:
+                for j, line in enumerate(footer_lines):
+                    d2.text((W / 2, 1400 + j * 62), line, font=foot, fill=GREEN if j == 0 else (170, 170, 170), anchor="mm")
+        else:
+            if t > 0.6:
+                d2.text((W / 2, 620), tagline, font=tag, fill=WHITE, anchor="mm")
+            if t > 1.3:
+                for j, line in enumerate(footer_lines):
+                    d2.text((W / 2, 800 + j * 62), line, font=foot, fill=GREEN if j == 0 else (170, 170, 170), anchor="mm")
         if t < 0.12:  # white flash on the hit
             img = Image.blend(img, Image.new("RGB", (W, H), (255, 255, 255)), 1 - t / 0.12)
         img = scanlines(img, 30)
@@ -298,12 +320,15 @@ def poster_card(folder, seconds, lines, sub, drone=True):
         d = ImageDraw.Draw(img)
         d.rectangle([30, 30, W - 30, H - 30], outline=NAVY, width=14)
         d.rectangle([58, 58, W - 58, H - 58], outline=PRED, width=6)
-        for k in range(9):
-            draw_star(d, 200 + k * 190, 130, 30, PRED if k % 2 else NAVY)
-        text_x = W * 0.62 if drone else W / 2
+        vertical = H > W
+        stars = 5 if vertical else 9
+        for k in range(stars):
+            draw_star(d, W / 2 + (k - (stars - 1) / 2) * 190, 130, 30, PRED if k % 2 else NAVY)
+        text_x = W / 2 if vertical or not drone else W * 0.62
         if drone:
             px = 26
-            ox, oy = 150, 370
+            # Vertical: the drone on top, centered, the text under it
+            ox, oy = ((W - 22 * px) // 2, 300) if vertical else (150, 370)
             bob = int(np.sin(t * 5) * 8)
             for r, row in enumerate(DRONE):
                 for c, ch in enumerate(row):
@@ -316,14 +341,14 @@ def poster_card(folder, seconds, lines, sub, drone=True):
                                 continue
                         d.rectangle([ox + c * px, oy + r * px + bob, ox + (c + 1) * px - 1, oy + (r + 1) * px - 1 + bob], fill=col)
         k = min(1.0, t / 0.35)
-        y = H / 2 - (len(lines) - 1) * 95 + 20
+        y = H / 2 - (len(lines) - 1) * 95 + (330 if vertical and drone else 20)
         for j, line in enumerate(lines):
             if t < j * 0.25:
                 continue
             col = PRED if j == len(lines) - 1 else NAVY
             d.text((text_x, y + j * 190), line, font=big, fill=col, anchor="mm")
         if sub and t > 0.25 * len(lines):
-            d.text((text_x, H - 150), sub, font=fsub, fill=NAVY, anchor="mm")
+            d.text((text_x, H - (320 if vertical else 150)), sub, font=fsub, fill=NAVY, anchor="mm")
         arr = np.clip(np.asarray(img).astype(np.int16) + grain, 0, 255).astype(np.uint8)
         img = Image.fromarray(arr)
         if t < 0.1:

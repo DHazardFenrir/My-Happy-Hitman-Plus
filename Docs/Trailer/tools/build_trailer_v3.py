@@ -4,11 +4,17 @@ Edited from three autopilot recordings, like the first trailer:
   capA = mostly wins + the ending, capB = only fails (ads), capC = every fail kills you (threat alert + death).
 Clips are picked automatically from each recording's events.txt; texts and order are in TIMELINE.
 
-usage: build_trailer_v3.py <folder with capA/ capB/ capC/> <out.mp4> [work folder]"""
+usage: build_trailer_v3.py <folder with capA/ capB/ capC/> <out.mp4> [work folder] [--vertical]
+--vertical: the same edit at 1080x1920 for Instagram Reels / TikTok (the phone screen fills the frame)"""
 import os, sys, shutil, subprocess
 import numpy as np
 from PIL import Image
 sys.path.insert(0, os.path.dirname(__file__))
+VERTICAL = "--vertical" in sys.argv
+if VERTICAL:
+    sys.argv.remove("--vertical")
+    import trailer_lib
+    trailer_lib.W, trailer_lib.H = 1080, 1920
 from trailer_lib import *
 from trailer_music import synthwave
 
@@ -20,6 +26,21 @@ os.makedirs(WORK)
 CROP_PHONE = (420, 160, 1500, 768)    # minigame zoomed in
 CROP_LOW = (420, 260, 1500, 868)      # car / elevator / dogs (action lower on screen)
 CROP_CARD = (200, 235, 1700, 1079)    # menu, cards, neon sign, ad, RC road (they fill the phone)
+# Vertical: the phone screen inside the 1920x1080 recordings (the piano/sewer zoom only uses its top part)
+PHONE_SCREEN = (596, 264, 1304, 1080)
+PHONE_TOP = (596, 264, 1304, 710)
+
+
+def vertical_frame(im, crop, t):
+    """1920x1080 recording frame -> 1080x1920: the phone screen (or the whole frame) centered, CCTV overlay"""
+    src = im.crop(PHONE_TOP if crop == CROP_PHONE else PHONE_SCREEN) if crop else im
+    h = int(src.height * W / src.width)
+    out = Image.new("RGB", (W, H), (6, 8, 10))
+    out.paste(src.resize((W, h), Image.LANCZOS), (0, (H - h) // 2))
+    cctv_frame(out, t)
+    return out
+
+
 SECONDS_BEFORE_HIT = {"PianoDropStage": 2.6, "LightTrafficStage": 1.4, "ElevatorStage": 2.2, "SewerStage": 1.5,
                       "PlazaDroneStage": 2.4, "NightDroneStage": 2.6, "RcCarStage": 4.2, "DogFenceStage": 2.8}
 # capOld: optional fallback (a link to an older recording) for minigames the autopilot failed in these takes
@@ -202,7 +223,9 @@ for i, (item, level) in enumerate(TIMELINE):
             if fr in opts.get("hide", []) and fr > a:
                 fr -= 1  # a broken frame: repeat the one before
             im = Image.open(os.path.join(S, cap, "frames", "f%06d.jpg" % fr))
-            if crop:
+            if VERTICAL:
+                im = vertical_frame(im, crop, k / FPS)
+            elif crop:
                 im = im.crop(crop).resize((W, H), Image.LANCZOS)
             if k >= n - glitch_out:
                 im = glitch(im, (k - (n - glitch_out) + 1) / glitch_out)
@@ -216,7 +239,7 @@ for i, (item, level) in enumerate(TIMELINE):
     else:
         _, secs = item
         n = logo_card(folder, secs, "THREATS ARE HIDING AMONG US. WE NEED YOU.",
-                      ["DEMO  -  NOVEMBER 15", "8 TRAINING MISSIONS. YOUR CITY IS WATCHING."])
+                      ["FREE DEMO  -  NOVEMBER 14", "8 TRAINING MISSIONS. YOUR CITY IS WATCHING."])
         encode_sequence(folder, 0, n, out, fade_out=0.6)
         logo_at = t
     shutil.rmtree(folder, ignore_errors=True)

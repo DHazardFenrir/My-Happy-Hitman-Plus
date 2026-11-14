@@ -3,6 +3,7 @@
 - `AgentTR8N1_Trailer.mp4` — 92 s, 1920x1080, 30 fps. Estilo anuncio de reclutamiento ("YOUR CITY NEEDS YOU"), marcha chiptune que se corta cuando los drones disparan.
 - `AgentTR8N1_Trailer_v2.mp4` — 113 s. Agrega el carro RC ("NEW: GROUND UNITS") y los perros ("NEW: COMMUNITY K-9 PROGRAM"), el THREAT ALERT, el nuevo final. Música: la marcha chiptune.
 - `AgentTR8N1_FinalBroadcast_reel.mp4` — 72 s, **vertical 1080x1920** para Instagram Reels ("FINAL BROADCAST", cierre de la campaña). Estilo del panfleto de itch: el coronel y la tropa de lentes, los 12 minijuegos seguidos (verbo + frase por misión), la huella y la muerte en la vida real, la graduación y la tarjeta final del demo. Usa los sonidos grabados de Carlos.
+- `v3/AgentTR8N1_Trailer_PartII_vertical.mp4` — el Part II en **vertical 1080x1920** (mismo metraje, música y edición; la pantalla del teléfono llena el cuadro). Cierre: "FREE DEMO - NOVEMBER 14". `v3/AgentTR8N1_Trailer_PartII_v3.mp4` es el mismo con la fecha nueva en horizontal. Se hace con `build_trailer_v3.py <tomas v6> salida.mp4 --vertical`.
 - `sfx/` — los efectos del juego exportados a WAV (generados con el sintetizador sfxr/bfxr de `RuntimeSounds.cs`).
 
 ## Volver a grabar y editar
