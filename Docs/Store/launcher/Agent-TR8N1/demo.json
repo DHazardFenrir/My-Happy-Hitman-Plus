@@ -1,0 +1,20 @@
+{
+  "title": "AGENT TR8N1",
+  "studio": "Sisyphus Studios",
+  "description": "Entrena como operador de drones: encuentra a la amenaza entre la gente y presiona el botón en el momento justo. 4 misiones, un botón.",
+  "tags": ["Microjuegos", "Arcade", "Sátira"],
+  "players": "1",
+  "cover": "cover.png",
+  "color": "#ff4040",
+  "order": 1,
+  "executable": {
+    "macos": "AgentTR8N1.app",
+    "windows": "AgentTR8N1.exe"
+  },
+  "args": [],
+  "links": {
+    "itch": "https://dhazard.itch.io/agent-tr8n1",
+    "instagram": "https://www.instagram.com/sisyphusstudios/",
+    "kofi": "https://ko-fi.com/Z8D22AC0W0"
+  }
+}
